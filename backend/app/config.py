@@ -1,11 +1,22 @@
-from pydantic_settings import BaseSettings, EnvSettingsSource, SettingsConfigDict
+from pydantic_settings import BaseSettings, DotEnvSettingsSource, EnvSettingsSource, SettingsConfigDict
+
+
+def _csv_prepare(field_name, field, value, value_is_complex, super_fn):
+    if field_name == "cors_origins" and isinstance(value, str):
+        return [o.strip() for o in value.split(",") if o.strip()] or None
+    return super_fn(field_name, field, value, value_is_complex)
 
 
 class _CsvEnvSource(EnvSettingsSource):
     def prepare_field_value(self, field_name, field, value, value_is_complex):
-        if field_name == "cors_origins" and isinstance(value, str):
-            return [o.strip() for o in value.split(",") if o.strip()]
-        return super().prepare_field_value(field_name, field, value, value_is_complex)
+        return _csv_prepare(field_name, field, value, value_is_complex,
+                            super().prepare_field_value)
+
+
+class _CsvDotEnvSource(DotEnvSettingsSource):
+    def prepare_field_value(self, field_name, field, value, value_is_complex):
+        return _csv_prepare(field_name, field, value, value_is_complex,
+                            super().prepare_field_value)
 
 
 class Settings(BaseSettings):
@@ -21,8 +32,12 @@ class Settings(BaseSettings):
     models_file: str = "models.yaml"
 
     @classmethod
-    def settings_customise_sources(cls, settings_cls, env_settings, **kwargs):
-        return (_CsvEnvSource(settings_cls),) + tuple(v for v in kwargs.values() if v is not None)
+    def settings_customise_sources(cls, settings_cls, env_settings, dotenv_settings, **kwargs):
+        return (
+            _CsvEnvSource(settings_cls),
+            _CsvDotEnvSource(settings_cls, env_file=".env"),
+            *[v for v in kwargs.values() if v is not None],
+        )
 
 
 def get_settings() -> Settings:
