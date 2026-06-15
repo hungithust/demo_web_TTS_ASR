@@ -1,31 +1,21 @@
 # AI Demo Playground Frontend
 
-TTS + ASR demo frontend built with React, Vite, TypeScript, and TailwindCSS.
-It currently uses fake API data and is packaged for Docker-based setup.
+TTS (Text to Speech) and ASR (Automatic Speech Recognition) demo frontend.
+Uses fake API data and is fully dockerized for easy setup.
 
-## Requirements
+## Folder Structure
 
-- Docker
-- Docker Compose
+You will receive this project as a ZIP file. Unzip it first, then open the project folder in a terminal.
 
 ## Run with Docker
 
 ```bash
-git clone <repo>
-cd <repo>
 docker compose up --build
 ```
 
 Open:
 
 - http://localhost:3000/
-
-## Environment Variables
-
-- `VITE_API_BASE_URL`
-
-The frontend is currently using fake service data, so a backend is not required.
-If you later connect a real backend, set `VITE_API_BASE_URL` at build time or in `.env`.
 
 ## Run without Docker
 
@@ -34,8 +24,23 @@ npm install
 npm run dev
 ```
 
+## Environment
+
+- `VITE_API_BASE_URL=http://localhost:8000`
+
+Currently the project uses a fake service, so a backend is not required.
+
 ## Notes
 
-- No real backend yet
 - Fake models: `model_a`, `model_b`, `model_c`
-- API layer is ready for a real backend later
+- API layer is ready for a real backend
+- No additional setup required
+
+## Troubleshooting
+
+If Docker fails:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
