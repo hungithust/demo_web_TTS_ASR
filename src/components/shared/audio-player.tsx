@@ -6,6 +6,8 @@ export interface AudioPlayerProps {
   label: string;
   durationLabel?: string;
   src?: string | null;
+  hasPlayed?: boolean;
+  onEnded?: () => void;
   className?: string;
 }
 
@@ -23,6 +25,8 @@ export function AudioPlayer({
   label,
   durationLabel = "--:--",
   src,
+  hasPlayed = false,
+  onEnded,
   className,
 }: AudioPlayerProps) {
   const [playing, setPlaying] = useState(false);
@@ -39,23 +43,26 @@ export function AudioPlayer({
     const audio = audioRef.current;
     if (!audio || !src) return;
 
-    const onEnded = () => setPlaying(false);
+    const handleEnded = () => {
+      setPlaying(false);
+      onEnded?.();
+    };
     const onPause = () => setPlaying(false);
     const onPlay = () => setPlaying(true);
     const onLoadedMetadata = () => setMetadataDuration(formatDuration(audio.duration));
 
-    audio.addEventListener("ended", onEnded);
+    audio.addEventListener("ended", handleEnded);
     audio.addEventListener("pause", onPause);
     audio.addEventListener("play", onPlay);
     audio.addEventListener("loadedmetadata", onLoadedMetadata);
 
     return () => {
-      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("ended", handleEnded);
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("loadedmetadata", onLoadedMetadata);
     };
-  }, [src]);
+  }, [onEnded, src]);
 
   async function togglePlayback() {
     if (!src) {
@@ -77,7 +84,8 @@ export function AudioPlayer({
   return (
     <div
       className={cn(
-        "flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-background/60 px-3 py-2",
+        "flex min-w-0 items-center gap-3 rounded-2xl border bg-background/60 px-3 py-2 transition-colors",
+        hasPlayed ? "border-primary/40 bg-primary/5" : "border-border",
         className,
       )}
     >

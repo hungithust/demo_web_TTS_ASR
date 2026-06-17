@@ -1,46 +1,24 @@
 # AI Demo Playground Frontend
 
-TTS (Text to Speech) and ASR (Automatic Speech Recognition) demo frontend.
-Uses fake API data and is fully dockerized for easy setup.
+TTS, ASR, and evaluation demo frontend.
+This ZIP is ready to run with Docker only.
 
-## Folder Structure
+## Run
 
-You will receive this project as a ZIP file. Unzip it first, then open the project folder in a terminal.
-
-## Run with Docker
+1. Unzip the project
+2. Open a terminal in the project folder
+3. Run:
 
 ```bash
 docker compose up --build
 ```
 
-Open:
+4. Open:
 
-- http://localhost:3000/
-
-## Run without Docker
-
-```bash
-npm install
-npm run dev
-```
-
-## Environment
-
-- `VITE_API_BASE_URL=http://localhost:8000`
-
-Currently the project uses a fake service, so a backend is not required.
+http://localhost:3000/
 
 ## Notes
 
-- Fake models: `model_a`, `model_b`, `model_c`
-- API layer is ready for a real backend
-- No additional setup required
-
-## Troubleshooting
-
-If Docker fails:
-
-```bash
-docker compose down -v
-docker compose up --build
-```
+- The app uses fake service data
+- No extra setup is required
+- No manual environment config is needed

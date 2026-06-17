@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type ActiveTab = "tts" | "asr";
+export type ActiveTab = "tts" | "asr" | "evaluation";
 
 type UiState = {
   activeTab: ActiveTab;

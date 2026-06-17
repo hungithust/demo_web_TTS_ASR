@@ -1,13 +1,14 @@
-import { AudioLines, FileAudio2 } from "lucide-react";
+import { AudioLines, FileAudio2, FileText } from "lucide-react";
 import { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Container } from "@/components/shared/container";
 import { cn } from "@/lib/utils";
-import { useUiStore } from "@/store/ui-store";
+import { useUiStore, type ActiveTab } from "@/store/ui-store";
 
 const tabs = [
   { label: "Text to Speech", path: "/tts", icon: AudioLines },
   { label: "Automatic Speech Recognition", path: "/asr", icon: FileAudio2 },
+  { label: "TTS Evaluation", path: "/evaluation", icon: FileText },
 ];
 
 export function Header() {
@@ -15,7 +16,9 @@ export function Header() {
   const setActiveTab = useUiStore((state) => state.setActiveTab);
 
   useEffect(() => {
-    setActiveTab(location.pathname === "/asr" ? "asr" : "tts");
+    const nextTab: ActiveTab =
+      location.pathname === "/asr" ? "asr" : location.pathname === "/evaluation" ? "evaluation" : "tts";
+    setActiveTab(nextTab);
   }, [location.pathname, setActiveTab]);
 
   return (
@@ -36,7 +39,7 @@ export function Header() {
                 <Link
                   key={tab.path}
                   to={tab.path}
-                  onClick={() => setActiveTab(tab.path.slice(1) as "tts" | "asr")}
+                  onClick={() => setActiveTab(tab.path.slice(1) as ActiveTab)}
                   className={cn(
                     "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition sm:px-4 sm:text-sm",
                     active

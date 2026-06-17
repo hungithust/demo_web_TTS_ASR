@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 const tabs = [
   { label: "TTS", path: "/tts" },
   { label: "ASR", path: "/asr" },
+  { label: "TTS Evaluation", path: "/evaluation" },
 ];
 
 export function TabNavigation() {
