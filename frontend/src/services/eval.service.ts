@@ -1,10 +1,16 @@
-import { fetchJson, resolveAssetUrl } from "@/services/api";
+import { apiBaseUrl, fetchJson, resolveAssetUrl, simulateLatency } from "@/services/api";
+import { cmosSamples } from "@/data/cmosSamples";
+import { mosSamples } from "@/data/mosSamples";
 import type {
   CmosSample,
   MosSample,
   SubmitCmosChoiceRequest,
   SubmitMosScoreRequest,
 } from "@/types/eval.types";
+
+// When no backend is configured, fall back to local mock data so the UI can be
+// exercised / screenshotted standalone. Set VITE_API_BASE_URL to use the API.
+const useMock = apiBaseUrl === "";
 
 // ---- session ----------------------------------------------------------------
 
@@ -37,9 +43,31 @@ type SlotChoice = "slot1" | "slot2" | "same";
 // slot before submitting.
 const trialDisplayMap = new Map<string, { A: SlotChoice; B: SlotChoice }>();
 
+// ---- mock fallback ----------------------------------------------------------
+
+let mockMosCursor = 0;
+let mockCmosCursor = 0;
+
+function randomizeCmos(sample: CmosSample): CmosSample {
+  const swap = Math.random() < 0.5;
+  return {
+    sample_id: sample.sample_id,
+    trial_id: sample.trial_id,
+    audio_a: swap ? sample.audio_b : sample.audio_a,
+    audio_b: swap ? sample.audio_a : sample.audio_b,
+  };
+}
+
 // ---- MOS --------------------------------------------------------------------
 
 async function getNextMosSample(): Promise<MosSample> {
+  if (useMock) {
+    await simulateLatency();
+    const sample = mosSamples[mockMosCursor % mosSamples.length];
+    mockMosCursor += 1;
+    return sample;
+  }
+
   const session_id = getSessionId();
   const data = await fetchJson<MosNextResponse>(
     `/api/eval/mos/next?session_id=${encodeURIComponent(session_id)}`,
@@ -52,6 +80,11 @@ async function getNextMosSample(): Promise<MosSample> {
 }
 
 async function submitMosScore(payload: SubmitMosScoreRequest): Promise<void> {
+  if (useMock) {
+    await simulateLatency();
+    return;
+  }
+
   await fetchJson<{ ok: boolean }>("/api/eval/mos/submit", {
     method: "POST",
     body: JSON.stringify({
@@ -65,6 +98,13 @@ async function submitMosScore(payload: SubmitMosScoreRequest): Promise<void> {
 // ---- CMOS -------------------------------------------------------------------
 
 async function getNextCmosSample(): Promise<CmosSample> {
+  if (useMock) {
+    await simulateLatency();
+    const sample = cmosSamples[mockCmosCursor % cmosSamples.length];
+    mockCmosCursor += 1;
+    return randomizeCmos(sample);
+  }
+
   const session_id = getSessionId();
   const data = await fetchJson<CmosNextResponse>(
     `/api/eval/cmos/next?session_id=${encodeURIComponent(session_id)}`,
@@ -85,6 +125,11 @@ async function getNextCmosSample(): Promise<CmosSample> {
 }
 
 async function submitCmosChoice(payload: SubmitCmosChoiceRequest): Promise<void> {
+  if (useMock) {
+    await simulateLatency();
+    return;
+  }
+
   const mapping = trialDisplayMap.get(payload.trial_id);
   let choice: SlotChoice;
   if (payload.choice === "same") {

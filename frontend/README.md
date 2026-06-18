@@ -27,6 +27,12 @@ CMOS, mapping the choice back to the backend's fixed `slot1/slot2` before submit
 
 > After changing `.env`, restart `npm run dev` so Vite picks up the new value.
 
+### Mock mode (no backend — for screenshots/standalone UI)
+
+If `VITE_API_BASE_URL` is empty or unset, the Evaluation tab falls back to local
+mock data (`src/data/mosSamples.ts`, `src/data/cmosSamples.ts`) so the full UI can
+be exercised and screenshotted without a running backend.
+
 ## Run (Docker)
 
 ```bash

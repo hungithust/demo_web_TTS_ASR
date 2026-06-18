@@ -76,6 +76,10 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
 }
 
 export async function getHealth(): Promise<HealthResponse> {
+  if (apiBaseUrl === "") {
+    await simulateLatency();
+    return { status: "ok" };
+  }
   return requestWithRetry(
     async () => fetchJson<HealthResponse>("/health"),
     { retries: 0 },
