@@ -1,6 +1,6 @@
 import { arrayBufferToBase64, base64ToUint8Array, stripDataUrlPrefix } from "@/lib/base64";
 
-export function base64AudioToObjectUrl(base64Audio: string, mimeType = "audio/mpeg") {
+export function base64AudioToObjectUrl(base64Audio: string, mimeType = "audio/wav") {
   const bytes = base64ToUint8Array(stripDataUrlPrefix(base64Audio));
   const blob = new Blob([bytes], { type: mimeType });
   return URL.createObjectURL(blob);

@@ -1,38 +1,18 @@
 import type { AsrConvertRequest, AsrConvertResponse } from "@/types/asr.types";
 import { fileToBase64 } from "@/lib/audio";
-import { requestWithRetry, simulateLatency } from "@/services/api";
-
-const mockModels = ["model_a", "model_b", "model_c"] as const;
-
-function validateAsrRequest(payload: AsrConvertRequest) {
-  if (!payload.voice?.trim()) {
-    throw new Error("Audio is required.");
-  }
-
-  if (!mockModels.includes(payload.model_name as (typeof mockModels)[number])) {
-    throw new Error("Invalid ASR model.");
-  }
-}
+import { fetchJson } from "@/services/api";
+import { parseAsrModelsResponse } from "@/services/response-parsers";
 
 async function getModels(): Promise<string[]> {
-  return requestWithRetry(
-    async () => {
-      await simulateLatency();
-      return [...mockModels];
-    },
-    { retries: 0 },
-  );
+  const data = await fetchJson<unknown>("/api/asr/models");
+  return parseAsrModelsResponse(data);
 }
 
 async function convertAudio(payload: AsrConvertRequest): Promise<AsrConvertResponse> {
-  return requestWithRetry(
-    async () => {
-      validateAsrRequest(payload);
-      await simulateLatency();
-      return { text: "This is a fake transcription result." };
-    },
-    { retries: 0 },
-  );
+  return fetchJson<AsrConvertResponse>("/api/asr", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function encodeAudioToBase64(audio: Blob): Promise<string> {

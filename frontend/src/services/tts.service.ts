@@ -1,38 +1,17 @@
-import { mockTtsAudioBase64 } from "@/data/mock-audio";
+import { fetchJson } from "@/services/api";
+import { parseTtsModelsResponse } from "@/services/response-parsers";
 import type { TtsConvertRequest, TtsConvertResponse } from "@/types/tts.types";
-import { requestWithRetry, simulateLatency } from "@/services/api";
-
-const mockModels = ["model_a", "model_b", "model_c"] as const;
-
-function validateTtsRequest(payload: TtsConvertRequest) {
-  if (!payload.text?.trim()) {
-    throw new Error("Text is required.");
-  }
-
-  if (!mockModels.includes(payload.model_name as (typeof mockModels)[number])) {
-    throw new Error("Invalid TTS model.");
-  }
-}
 
 async function getModels(): Promise<string[]> {
-  return requestWithRetry(
-    async () => {
-      await simulateLatency();
-      return [...mockModels];
-    },
-    { retries: 0 },
-  );
+  const data = await fetchJson<unknown>("/api/tts/models");
+  return parseTtsModelsResponse(data);
 }
 
 async function convertText(payload: TtsConvertRequest): Promise<TtsConvertResponse> {
-  return requestWithRetry(
-    async () => {
-      validateTtsRequest(payload);
-      await simulateLatency();
-      return { voice: mockTtsAudioBase64 };
-    },
-    { retries: 0 },
-  );
+  return fetchJson<TtsConvertResponse>("/api/tts", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export const ttsService = {

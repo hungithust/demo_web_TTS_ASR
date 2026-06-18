@@ -1,25 +1,13 @@
 import { useEffect } from "react";
 import { Loader2, Sparkles, X } from "lucide-react";
 import { AudioPlayer } from "@/components/shared/audio-player";
-import { AudioCell } from "@/components/shared/audio-cell";
 import { DemoCard } from "@/components/shared/demo-card";
-import {
-  ComparisonColumnLabel,
-  ComparisonTable,
-  ComparisonTableBody,
-  ComparisonTableCell,
-  ComparisonTableHeaderCell,
-  ComparisonTableRow,
-} from "@/components/shared/comparison-table";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingOverlay } from "@/components/shared/loading-overlay";
 import { ModelDropdown } from "@/components/shared/model-dropdown";
 import { PrimaryButton } from "@/components/shared/primary-button";
 import { SectionContainer } from "@/components/shared/section-container";
-import { TableHeader } from "@/components/shared/table-header";
-import { TextCell } from "@/components/shared/text-cell";
 import { Textarea } from "@/components/ui/textarea";
-import { ttsExampleRows } from "@/data/ttsExamples";
 import { useTtsStore } from "@/store/tts-store";
 
 export function TtsContent() {
@@ -56,6 +44,7 @@ export function TtsContent() {
           <div className="relative">
             <Textarea
               autoResize
+              placeholder="Enter text to synthesize"
               value={text}
               onChange={(event) => setText(event.target.value)}
               rows={1}
@@ -110,44 +99,6 @@ export function TtsContent() {
             />
           ) : null}
         </DemoCard>
-      </SectionContainer>
-
-      <SectionContainer title="Examples">
-        <ComparisonTable caption="TTS example comparison">
-          <TableHeader>
-            <ComparisonTableRow>
-              <ComparisonTableHeaderCell className="w-[34%]">
-                <ComparisonColumnLabel label="Text" />
-              </ComparisonTableHeaderCell>
-              <ComparisonTableHeaderCell className="w-[22%]">
-                <ComparisonColumnLabel label="Model A" />
-              </ComparisonTableHeaderCell>
-              <ComparisonTableHeaderCell className="w-[22%]">
-                <ComparisonColumnLabel label="Model B" />
-              </ComparisonTableHeaderCell>
-              <ComparisonTableHeaderCell className="w-[22%]">
-                <ComparisonColumnLabel label="Model C" />
-              </ComparisonTableHeaderCell>
-            </ComparisonTableRow>
-          </TableHeader>
-          <ComparisonTableBody>
-            {ttsExampleRows.map((row) => (
-              <ComparisonTableRow key={row.id}>
-                <ComparisonTableCell className="w-[34%]">
-                  <TextCell text={row.text} />
-                </ComparisonTableCell>
-                {row.outputs.map((output) => (
-                  <ComparisonTableCell key={`${row.id}-${output.model}`} className="w-[22%]">
-                    <AudioCell
-                      label={output.title}
-                      durationLabel={output.durationLabel}
-                    />
-                  </ComparisonTableCell>
-                ))}
-              </ComparisonTableRow>
-            ))}
-          </ComparisonTableBody>
-        </ComparisonTable>
       </SectionContainer>
     </>
   );

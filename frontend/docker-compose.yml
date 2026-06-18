@@ -2,5 +2,7 @@ services:
   frontend:
     build:
       context: .
+      args:
+        VITE_API_BASE_URL: https://<your-ngrok-url>
     ports:
       - "3000:80"

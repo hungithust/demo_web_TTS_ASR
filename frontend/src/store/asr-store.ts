@@ -60,7 +60,10 @@ export const useAsrStore = create<AsrState>((set, get) => ({
   uploadedAudio: null,
   recordedAudio: null,
   activeSource: null,
-  setSelectedModel: (model) => set({ selectedModel: model }),
+  setSelectedModel: (model) =>
+    set((state) => ({
+      selectedModel: state.models.includes(model) ? model : state.models[0] || "",
+    })),
   setUploadedAudio: (audio) =>
     set((state) => {
       revokeAudio(state.uploadedAudio);
@@ -113,14 +116,13 @@ export const useAsrStore = create<AsrState>((set, get) => ({
   loadModels: async () => {
     set({ isLoadingModels: true, error: null });
     try {
-      // Backend contract: GET /api/asr/models returns the supported ASR model list.
       const models = await asrService.getModels();
       if (models.length === 0) {
         throw new Error("No ASR models returned by the backend.");
       }
       set((state) => ({
         models,
-        selectedModel: state.selectedModel || models[0] || "",
+        selectedModel: state.selectedModel && models.includes(state.selectedModel) ? state.selectedModel : models[0] || "",
       }));
     } catch (error) {
       set({ error: getApiMessage(error, "Failed to load ASR models.") });
@@ -144,7 +146,6 @@ export const useAsrStore = create<AsrState>((set, get) => ({
 
     set({ isConverting: true, error: null });
     try {
-      // Backend contract: POST /api/asr accepts base64 voice and model_name and returns transcription text.
       const voice = await encodeAudioToBase64(currentAudio.file);
       const response = await asrService.convertAudio({
         voice,

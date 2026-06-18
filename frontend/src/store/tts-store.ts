@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { ttsService } from "@/services/tts.service";
-import { ttsExampleRows } from "@/data/ttsExamples";
 import { base64AudioToObjectUrl } from "@/lib/audio";
 import { getApiMessage } from "@/services/api";
 
@@ -28,10 +27,8 @@ export interface TtsState {
   resetAudio: () => void;
 }
 
-const defaultText = ttsExampleRows[0]?.text ?? "";
-
 export const useTtsStore = create<TtsState>((set, get) => ({
-  text: defaultText,
+  text: "",
   selectedModel: "",
   models: [],
   isLoadingModels: false,
@@ -39,7 +36,10 @@ export const useTtsStore = create<TtsState>((set, get) => ({
   error: null,
   audio: { src: null, fileName: null },
   setText: (text) => set({ text }),
-  setSelectedModel: (model) => set({ selectedModel: model }),
+  setSelectedModel: (model) =>
+    set((state) => ({
+      selectedModel: state.models.includes(model) ? model : state.models[0] || "",
+    })),
   setAudio: (audio) => set({ audio }),
   clearText: () =>
     set((state) => {
@@ -54,7 +54,7 @@ export const useTtsStore = create<TtsState>((set, get) => ({
         URL.revokeObjectURL(state.audio.src);
       }
       return {
-        text: text ?? defaultText,
+        text: text ?? "",
         audio: { src: null, fileName: null },
         error: null,
       };
@@ -71,14 +71,13 @@ export const useTtsStore = create<TtsState>((set, get) => ({
   loadModels: async () => {
     set({ isLoadingModels: true, error: null });
     try {
-      // Backend contract: GET /api/tts/models returns the supported model list.
       const models = await ttsService.getModels();
       if (models.length === 0) {
         throw new Error("No TTS models returned by the backend.");
       }
       set((state) => ({
         models,
-        selectedModel: state.selectedModel || models[0] || "",
+        selectedModel: state.selectedModel && models.includes(state.selectedModel) ? state.selectedModel : models[0] || "",
       }));
     } catch (error) {
       set({ error: getApiMessage(error, "Failed to load TTS models.") });
@@ -101,19 +100,18 @@ export const useTtsStore = create<TtsState>((set, get) => ({
 
     set({ isConverting: true, error: null });
     try {
-      // Backend contract: POST /api/tts accepts text + model_name and returns base64 voice output.
       const response = await ttsService.convertText({
         text,
         model_name: selectedModel,
       });
 
-      const nextSrc = base64AudioToObjectUrl(response.voice);
+      const nextSrc = base64AudioToObjectUrl(response.voice, "audio/wav");
       const previousSrc = audio.src;
       set({
         error: null,
         audio: {
           src: nextSrc,
-          fileName: `${selectedModel || "tts-output"}.mp3`,
+          fileName: `${selectedModel || "tts-output"}.wav`,
         },
       });
       if (previousSrc) {
