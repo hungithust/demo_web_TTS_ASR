@@ -18,6 +18,23 @@ docker build -t tts-asr-backend .
 docker run -p 8000:8000 --env-file .env tts-asr-backend
 ```
 
+## TTS Evaluation (MOS & CMOS)
+
+The evaluation module needs a fixed test set of audio pre-generated to disk, plus a
+SQLite DB (created automatically at `data/eval.db`).
+
+```bash
+# 1. Pre-generate the test set (run once, or whenever the test set changes).
+#    --mock uses the mock engine; drop it to use the real engine (set MOCK_MODE=false).
+python -m scripts.pregenerate --testset sample_data/eval_testset.json --mock
+
+# 2. Start the server (DB + /static are wired up on startup).
+uvicorn app.main:app --reload --port 8000
+```
+
+Audio files are written to `static/audio/` (hashed filenames so the model is not
+guessable) and served at `/static/audio/...`. The DB only stores paths.
+
 ## Test
 
 ```
@@ -29,6 +46,26 @@ python -m pytest -v
 - `GET /health`
 - `GET /api/tts/models`, `POST /api/tts` `{text, model_name}` → `{voice}`
 - `GET /api/asr/models`, `POST /api/asr` `{voice, model_name}` → `{text}`
+
+Evaluation (blind: clients never receive `model_id`):
+
+- `GET /api/eval/mos/next?session_id=...` → `{trial_id, sample_id, audio_url}`
+- `POST /api/eval/mos/submit` `{trial_id, score, session_id}` → `{ok}`
+- `GET /api/eval/cmos/next?session_id=...` → `{trial_id, sample_id, slot1_url, slot2_url}`
+- `POST /api/eval/cmos/submit` `{trial_id, choice: slot1|slot2|same, session_id}` → `{ok}`
+- `GET /api/eval/mos/results`, `GET /api/eval/cmos/results` → ranking + stats
+
+## Expose to the frontend with ngrok
+
+To let a locally-running frontend hit this backend, expose port 8000:
+
+```bash
+ngrok http 8000
+```
+
+Copy the `https://<id>.ngrok-free.dev` URL into `frontend/.env` as `VITE_API_BASE_URL`.
+CORS is open in `.env` (`CORS_ORIGINS=*`) so the cross-origin frontend can call it.
+Note: the free ngrok URL changes on every restart — update `frontend/.env` each time.
 
 ## Manual API testing
 

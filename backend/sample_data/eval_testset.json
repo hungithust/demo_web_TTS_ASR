@@ -1,0 +1,9 @@
+{
+  "samples": [
+    { "id": "s1", "text": "Hôm nay trời đẹp, chúng ta cùng đi dạo công viên nhé." },
+    { "id": "s2", "text": "Công nghệ tổng hợp giọng nói đang phát triển rất nhanh." },
+    { "id": "s3", "text": "Xin vui lòng chờ trong giây lát, hệ thống đang xử lý." },
+    { "id": "s4", "text": "Mỗi buổi sáng tôi thường uống một tách cà phê nóng." },
+    { "id": "s5", "text": "Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi." }
+  ]
+}

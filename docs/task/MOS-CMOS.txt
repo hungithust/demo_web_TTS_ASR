@@ -1,0 +1,14 @@
+"Phát triển Web đánh giá chat lượng model TTS thông qua metrics MOS":
+Tổng quan về yêu cầu: 
+Phát triển web đánh giá chất lượng model TTS sử dung metrics Mean Opinion Score. 
+Giả sử có 1 tập models gồm N models TTS cần được chấm điểm và 1 tập test set fixed cho TTS (khoảng 50 samples), 
+Khi người dung truy cập vào website, thì randomly bật audio được gen từ model cho test samples, sau khi người dung nghe xong -> yêu cầu người dung chấm điểm trên thang 5 (bước nhảy 0.5), với 5 là điểm cao nhất -> chất lượng tốt nhất, 0 là điểm kém nhất. Lưu ý là người dung chỉ nghe và chấm điểm, chứ không được biết những logic phia sau (ví dụ không biết model gen text là model nào). 
+Về UI: Huỳnh Lê Xuân Ánh (VSF) tiếp tục phát triển them 1 tab bên cạnh 2 tab hôm qua cho phần này, mien sao đáp ứng được tính năng cơ bản như play audio, hiện thị score band để người dung chấm điểm
+Về backend: Nguyen Viet Hung (S.AI.20K) suy nghĩ và đưa ra phần thiết kế APIs, database nếu cần thiết
+
+Chỗ này tạm thời 2 em suy nghĩ và tham khảo thử các ví dụ demo trên mạng, sau đó đưa ra cho a 1 bản proposal (markdown, docx,..) xem các em sẽ làm thế nào, phần TTS APIs team sẽ cung cấp cho em, em không cần care phần này, chỉ cần thiết kế FE và BE sao cho hợp lí để đáp ứng được yêu cầu bài toán
+Ánh và Hùng có thể phối hợp làm việc cùng nhau, chứ cũng ko hẳn cố định là Ánh làm phần UI, Hùng làm phần backend -> chỗ này 2 em chủ động phối hợp với nhau.
+
+bổ sung them phần CMOS nữa nha 2 em
+MOS: Đánh giá độc lập 1 model
+CMOS: So sánh 2 models (A,B) -> model nào tốt hơn?

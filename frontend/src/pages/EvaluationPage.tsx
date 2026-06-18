@@ -115,7 +115,7 @@ export function EvaluationPage() {
     setMosIsSubmitting(true);
     try {
       await evalService.submitMosScore({
-        sample_id: mosSample.sample_id,
+        trial_id: mosSample.trial_id,
         score: mosScore,
       });
       setMosScore(null);
@@ -138,7 +138,7 @@ export function EvaluationPage() {
     setCmosIsSubmitting(true);
     try {
       await evalService.submitCmosChoice({
-        sample_id: cmosPair.sample_id,
+        trial_id: cmosPair.trial_id,
         choice: selectedChoice,
       });
       setSelectedChoice(null);

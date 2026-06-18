@@ -1,105 +1,111 @@
-import { cmosSamples } from "@/data/cmosSamples";
-import { mosSamples } from "@/data/mosSamples";
-import { requestWithRetry, simulateLatency } from "@/services/api";
+import { fetchJson, resolveAssetUrl } from "@/services/api";
 import type {
   CmosSample,
-  ComparisonChoice,
   MosSample,
   SubmitCmosChoiceRequest,
   SubmitMosScoreRequest,
 } from "@/types/eval.types";
 
-const submittedMosScores: SubmitMosScoreRequest[] = [];
-const submittedCmosChoices: SubmitCmosChoiceRequest[] = [];
+// ---- session ----------------------------------------------------------------
 
-let mosCursor = 0;
-let cmosCursor = 0;
+const SESSION_KEY = "eval_session_id";
 
-function pickNextIndex(currentIndex: number, total: number) {
-  if (total <= 0) return 0;
-  return (currentIndex + 1) % total;
+function getSessionId(): string {
+  let id = localStorage.getItem(SESSION_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(SESSION_KEY, id);
+  }
+  return id;
 }
 
-function randomizeCmosSample(sample: CmosSample): CmosSample {
-  const swapped = Math.random() < 0.5;
+// ---- backend payload shapes -------------------------------------------------
 
+type MosNextResponse = { trial_id: string; sample_id: string; audio_url: string };
+type CmosNextResponse = {
+  trial_id: string;
+  sample_id: string;
+  slot1_url: string;
+  slot2_url: string;
+};
+
+type SlotChoice = "slot1" | "slot2" | "same";
+
+// Order-bias removal happens on the FE: the backend always returns a fixed
+// slot1/slot2 order; we randomly map them onto the displayed A/B positions and
+// remember the mapping so we can translate the user's A/B/same choice back to a
+// slot before submitting.
+const trialDisplayMap = new Map<string, { A: SlotChoice; B: SlotChoice }>();
+
+// ---- MOS --------------------------------------------------------------------
+
+async function getNextMosSample(): Promise<MosSample> {
+  const session_id = getSessionId();
+  const data = await fetchJson<MosNextResponse>(
+    `/api/eval/mos/next?session_id=${encodeURIComponent(session_id)}`,
+  );
   return {
-    sample_id: sample.sample_id,
-    audio_a: swapped ? sample.audio_b : sample.audio_a,
-    audio_b: swapped ? sample.audio_a : sample.audio_b,
+    sample_id: data.sample_id,
+    trial_id: data.trial_id,
+    audio_url: resolveAssetUrl(data.audio_url),
   };
 }
 
-async function getNextMosSample(): Promise<MosSample> {
-  return requestWithRetry(
-    async () => {
-      await simulateLatency();
-
-      if (mosSamples.length === 0) {
-        throw new Error("No MOS samples available.");
-      }
-
-      const sample = mosSamples[mosCursor % mosSamples.length];
-      mosCursor = pickNextIndex(mosCursor, mosSamples.length);
-
-      return sample;
-    },
-    { retries: 0 },
-  );
-}
-
 async function submitMosScore(payload: SubmitMosScoreRequest): Promise<void> {
-  return requestWithRetry(
-    async () => {
-      if (!payload.sample_id.trim()) {
-        throw new Error("MOS sample id is required.");
-      }
-
-      if (!Number.isFinite(payload.score)) {
-        throw new Error("MOS score is required.");
-      }
-
-      submittedMosScores.push(payload);
-      await simulateLatency();
-    },
-    { retries: 0 },
-  );
+  await fetchJson<{ ok: boolean }>("/api/eval/mos/submit", {
+    method: "POST",
+    body: JSON.stringify({
+      trial_id: payload.trial_id,
+      score: payload.score,
+      session_id: getSessionId(),
+    }),
+  });
 }
+
+// ---- CMOS -------------------------------------------------------------------
 
 async function getNextCmosSample(): Promise<CmosSample> {
-  return requestWithRetry(
-    async () => {
-      await simulateLatency();
-
-      if (cmosSamples.length === 0) {
-        throw new Error("No CMOS samples available.");
-      }
-
-      const sample = cmosSamples[cmosCursor % cmosSamples.length];
-      cmosCursor = pickNextIndex(cmosCursor, cmosSamples.length);
-
-      return randomizeCmosSample(sample);
-    },
-    { retries: 0 },
+  const session_id = getSessionId();
+  const data = await fetchJson<CmosNextResponse>(
+    `/api/eval/cmos/next?session_id=${encodeURIComponent(session_id)}`,
   );
+
+  // randomly assign slot1/slot2 to A/B
+  const swap = Math.random() < 0.5;
+  const aSlot: SlotChoice = swap ? "slot2" : "slot1";
+  const bSlot: SlotChoice = swap ? "slot1" : "slot2";
+  trialDisplayMap.set(data.trial_id, { A: aSlot, B: bSlot });
+
+  return {
+    sample_id: data.sample_id,
+    trial_id: data.trial_id,
+    audio_a: resolveAssetUrl(swap ? data.slot2_url : data.slot1_url),
+    audio_b: resolveAssetUrl(swap ? data.slot1_url : data.slot2_url),
+  };
 }
 
 async function submitCmosChoice(payload: SubmitCmosChoiceRequest): Promise<void> {
-  return requestWithRetry(
-    async () => {
-      if (!payload.sample_id.trim()) {
-        throw new Error("CMOS sample id is required.");
-      }
+  const mapping = trialDisplayMap.get(payload.trial_id);
+  let choice: SlotChoice;
+  if (payload.choice === "same") {
+    choice = "same";
+  } else if (mapping) {
+    choice = mapping[payload.choice];
+  } else {
+    // fallback: no mapping recorded (e.g. page reload) — assume A=slot1
+    choice = payload.choice === "A" ? "slot1" : "slot2";
+  }
 
-      if (!["A", "same", "B"].includes(payload.choice)) {
-        throw new Error("CMOS choice is required.");
-      }
+  await fetchJson<{ ok: boolean }>("/api/eval/cmos/submit", {
+    method: "POST",
+    body: JSON.stringify({
+      trial_id: payload.trial_id,
+      choice,
+      session_id: getSessionId(),
+    }),
+  });
 
-      submittedCmosChoices.push(payload);
-      await simulateLatency();
-    },
-    { retries: 0 },
-  );
+  trialDisplayMap.delete(payload.trial_id);
 }
 
 export const evalService = {
@@ -109,9 +115,4 @@ export const evalService = {
   submitCmosChoice,
 };
 
-export {
-  getNextMosSample,
-  submitMosScore,
-  getNextCmosSample,
-  submitCmosChoice,
-};
+export { getNextMosSample, submitMosScore, getNextCmosSample, submitCmosChoice };

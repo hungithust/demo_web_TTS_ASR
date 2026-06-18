@@ -47,12 +47,37 @@ export function getApiMessage(error: unknown, fallback: string) {
   return getApiErrorMessage(error, fallback);
 }
 
+export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+
+/** Turn a backend-relative path (e.g. /static/audio/x.wav) into an absolute URL. */
+export function resolveAssetUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${apiBaseUrl}${path}`;
+}
+
+export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    ...init,
+  });
+
+  if (!response.ok) {
+    let detail = `Request failed (${response.status})`;
+    try {
+      const body = await response.json();
+      if (body?.detail) detail = String(body.detail);
+    } catch {
+      // ignore non-JSON error bodies
+    }
+    throw new Error(detail);
+  }
+
+  return (await response.json()) as T;
+}
+
 export async function getHealth(): Promise<HealthResponse> {
   return requestWithRetry(
-    async () => {
-      await simulateLatency();
-      return { status: "ok" };
-    },
+    async () => fetchJson<HealthResponse>("/health"),
     { retries: 0 },
   );
 }

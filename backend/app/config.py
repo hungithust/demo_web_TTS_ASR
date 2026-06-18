@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     port: int = 8000
     engine_timeout: int = 30
     models_file: str = "models.yaml"
+    database_url: str = "sqlite:///data/eval.db"
+    static_dir: str = "static"
+    audio_dir: str = "static/audio"
+    min_votes: int = 20
 
     @classmethod
     def settings_customise_sources(cls, settings_cls, env_settings, dotenv_settings, **kwargs):

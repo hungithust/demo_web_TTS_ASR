@@ -1,24 +1,40 @@
 # AI Demo Playground Frontend
 
-TTS, ASR, and evaluation demo frontend.
-This ZIP is ready to run with Docker only.
+TTS, ASR, and evaluation demo frontend (React + Vite + TypeScript).
 
-## Run
+## Run (local dev — connects to the real backend)
 
-1. Unzip the project
-2. Open a terminal in the project folder
-3. Run:
+```bash
+npm install
+# Point the app at the backend (see backend/README.md to start it / expose via ngrok)
+echo "VITE_API_BASE_URL=http://localhost:8000" > .env
+npm run dev
+```
+
+Then open http://localhost:5173/ and use the **Evaluation** tab.
+
+### Backend URL
+
+The app reads `VITE_API_BASE_URL` from `.env` at build/start time:
+
+- Local backend: `VITE_API_BASE_URL=http://localhost:8000`
+- Backend exposed via ngrok: `VITE_API_BASE_URL=https://<id>.ngrok-free.dev`
+
+The TTS/ASR evaluation flow calls the backend directly:
+`GET/POST /api/eval/mos/*` and `/api/eval/cmos/*`. The frontend generates a
+`session_id` (stored in `localStorage`) and randomizes the A/B display order for
+CMOS, mapping the choice back to the backend's fixed `slot1/slot2` before submit.
+
+> After changing `.env`, restart `npm run dev` so Vite picks up the new value.
+
+## Run (Docker)
 
 ```bash
 docker compose up --build
 ```
 
-4. Open:
-
-http://localhost:3000/
+Open http://localhost:3000/
 
 ## Notes
 
-- The app uses fake service data
-- No extra setup is required
-- No manual environment config is needed
+- TTS/ASR tabs still use mock service data; the Evaluation tab talks to the backend.

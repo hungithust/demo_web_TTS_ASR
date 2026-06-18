@@ -26,5 +26,13 @@ class EngineTimeoutError(APIError):
     status_code = 504
 
 
+class InvalidTrialError(APIError):
+    status_code = 400
+
+
+class NoTrialAvailableError(APIError):
+    status_code = 404
+
+
 async def api_error_handler(request: Request, exc: APIError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
