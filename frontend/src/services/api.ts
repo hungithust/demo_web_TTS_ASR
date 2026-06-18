@@ -57,7 +57,12 @@ export function resolveAssetUrl(path: string): string {
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: {
+      "Content-Type": "application/json",
+      // Skip the ngrok-free browser interstitial so we get JSON, not HTML.
+      "ngrok-skip-browser-warning": "true",
+      ...(init?.headers ?? {}),
+    },
     ...init,
   });
 

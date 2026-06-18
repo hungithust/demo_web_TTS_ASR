@@ -3,6 +3,8 @@ services:
     build:
       context: .
       args:
-        VITE_API_BASE_URL: https://<your-ngrok-url>
+        # Substituted from frontend/.env (or the shell env) at build time.
+        # Must be the full backend base URL, e.g. https://xxxx.ngrok-free.dev
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
     ports:
       - "3000:80"
