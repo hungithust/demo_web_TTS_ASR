@@ -44,8 +44,12 @@ python -m pytest -v
 ## Endpoints
 
 - `GET /health`
-- `GET /api/tts/models`, `POST /api/tts` `{text, model_name}` → `{voice}`
+- `GET /api/tts/models`, `POST /api/tts` `{text, model_name}` → `{voice}` (base64 WAV)
 - `GET /api/asr/models`, `POST /api/asr` `{voice, model_name}` → `{text}`
+
+Models come from `models.yaml`. With the real gateway the TTS models are
+`omnivoice`, `voxcpm2` and the ASR models are `qwen3-asr-1.7b`, `qwen3-asr-0.6b`,
+`phowhisper-large`, `gipformer-65m-rnnt`, `parakeet-ctc`.
 
 Evaluation (blind: clients never receive `model_id`):
 
@@ -81,12 +85,12 @@ curl http://localhost:8000/api/tts/models
 # Text-to-speech — returns base64 WAV in the "voice" field
 curl -s -X POST http://localhost:8000/api/tts \
   -H "Content-Type: application/json" \
-  -d '{"text": "Xin chào", "model_name": "model_a"}' | python -m json.tool
+  -d '{"text": "Xin chào", "model_name": "omnivoice"}' | python -m json.tool
 
 # Save TTS audio to a file (requires Python one-liner to decode base64)
 curl -s -X POST http://localhost:8000/api/tts \
   -H "Content-Type: application/json" \
-  -d '{"text": "Xin chào", "model_name": "model_a"}' \
+  -d '{"text": "Xin chào", "model_name": "omnivoice"}' \
   | python -c "import sys,json,base64; d=json.load(sys.stdin); open('out.wav','wb').write(base64.b64decode(d['voice']))"
 
 # List available ASR models
@@ -102,10 +106,18 @@ curl -s -X POST http://localhost:8000/api/asr \
 # $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("sample_data\V1 09 11 12H00 THOI SU 2019_143.wav"))
 # Invoke-RestMethod -Uri http://localhost:8000/api/asr -Method Post `
 #   -ContentType "application/json" `
-#   -Body (ConvertTo-Json @{voice=$b64; model_name="model_a"})
+#   -Body (ConvertTo-Json @{voice=$b64; model_name="qwen3-asr-0.6b"})
 ```
 
 ## Env vars
 
-See `.env.example`. Set `MOCK_MODE=false` and engine URLs/key to use the real engine.
-The real-engine contract is in `app/engine_client/http_client.py` — adjust mapping there if the engine differs.
+See `.env.example`. Set `MOCK_MODE=false` and the gateway URLs to use the real engine.
+
+The real engine is an **OpenAI-compatible Speech Gateway**:
+
+- TTS → `POST {TTS_ENGINE_URL}` JSON `{model, voice, input, response_format:"wav"}` → WAV bytes
+- ASR → `POST {ASR_ENGINE_URL}` multipart `{file, model}` → `{"text": ...}`
+
+`TTS_ENGINE_URL`/`ASR_ENGINE_URL` are the full endpoint paths (`.../v1/audio/speech`,
+`.../v1/audio/transcriptions`). `TTS_VOICE` sets the fixed voice (default `alloy`).
+The mapping lives in `app/engine_client/http_client.py`.

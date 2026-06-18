@@ -21,4 +21,5 @@ def get_engine_client(settings) -> "EngineClient":
         asr_url=settings.asr_engine_url,
         api_key=settings.engine_api_key,
         timeout=settings.engine_timeout,
+        voice=settings.tts_voice,
     )

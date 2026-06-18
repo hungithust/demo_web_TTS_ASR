@@ -1,7 +1,9 @@
 tts:
-  - model_a
-  - model_b
-  - model_c
+  - omnivoice
+  - voxcpm2
 asr:
-  - model_a
-  - model_b
+  - qwen3-asr-1.7b
+  - qwen3-asr-0.6b
+  - phowhisper-large
+  - gipformer-65m-rnnt
+  - parakeet-ctc

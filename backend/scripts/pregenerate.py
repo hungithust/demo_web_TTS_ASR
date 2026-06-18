@@ -23,6 +23,19 @@ from app.models_eval import Sample, Model, Audio
 from app.services.models_registry import ModelsRegistry
 
 
+async def _synthesize_with_retry(engine, text: str, model_id: str, retries: int = 3) -> str:
+    """Synthesize with simple backoff — the remote gateway can drop long calls."""
+    last_exc = None
+    for attempt in range(1, retries + 1):
+        try:
+            return await engine.synthesize(text, model_id)
+        except Exception as e:  # noqa: BLE001 - retry any transient engine/network error
+            last_exc = e
+            print(f"  retry {attempt}/{retries} for model={model_id}: {e!r}")
+            await asyncio.sleep(2 * attempt)
+    raise last_exc
+
+
 def _hashed_name(sample_id: str, model_id: str) -> str:
     digest = hashlib.sha256(f"{sample_id}__{model_id}".encode("utf-8")).hexdigest()[:16]
     return f"{digest}.wav"
@@ -84,7 +97,7 @@ async def main() -> None:
 
         for sample in testset:
             for model_id in models:
-                b64 = await engine.synthesize(sample["text"], model_id)
+                b64 = await _synthesize_with_retry(engine, sample["text"], model_id)
                 wav = base64.b64decode(b64)
                 fname = _hashed_name(sample["id"], model_id)
                 path = os.path.join(settings.audio_dir, fname)

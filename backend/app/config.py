@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     tts_engine_url: str = ""
     asr_engine_url: str = ""
     engine_api_key: str = ""
+    tts_voice: str = "alloy"
     cors_origins: list[str] = ["http://localhost:3000"]
     port: int = 8000
     engine_timeout: int = 30
