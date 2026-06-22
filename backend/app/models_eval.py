@@ -12,6 +12,7 @@ class Sample(SQLModel, table=True):
 
     id: str = Field(primary_key=True)
     text: str
+    category: str | None = Field(default=None, index=True)
 
 
 class Model(SQLModel, table=True):
