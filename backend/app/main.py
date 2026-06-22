@@ -11,7 +11,8 @@ from app.engine_client.base import get_engine_client
 from app.services.models_registry import ModelsRegistry
 from app.services.speech_service import SpeechService
 from app.services.eval_service import EvalService
-from app.routers import tts, asr, eval as eval_router
+from app.routers import tts, asr, eval as eval_router, dataset as dataset_router
+from app.services.dataset_service import DatasetService
 
 
 def create_app() -> FastAPI:
@@ -32,6 +33,9 @@ def create_app() -> FastAPI:
 
     init_db(settings)
     app.state.eval_service = EvalService(get_session_factory(settings), registry)
+    app.state.dataset_service = DatasetService(
+        get_session_factory(settings), registry, engine, settings.audio_dir
+    )
 
     os.makedirs(settings.audio_dir, exist_ok=True)
     app.mount("/static", StaticFiles(directory=settings.static_dir), name="static")
@@ -40,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(tts.router)
     app.include_router(asr.router)
     app.include_router(eval_router.router)
+    app.include_router(dataset_router.router)
 
     @app.get("/health")
     async def health():
