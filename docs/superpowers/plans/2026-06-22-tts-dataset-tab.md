@@ -8,6 +8,16 @@
 
 **Tech Stack:** Python 3.12, FastAPI, SQLModel, SQLite, openpyxl, pytest; React 19, Vite, TypeScript, Tailwind, react-router.
 
+**Environment setup (do this first):** A Python virtualenv already exists at `backend/.venv` — do NOT create a new one and do NOT `pip install` globally. Activate it before any backend command (`pip`, `python -m pytest`, `python -m scripts.*`):
+
+```bash
+# from backend/  (Git Bash / PowerShell on Windows)
+source .venv/Scripts/activate      # bash
+# or:  .venv\Scripts\Activate.ps1   # PowerShell
+```
+
+All "from `backend/`" Python commands in this plan assume this venv is active. The frontend uses `npm` (no venv).
+
 ---
 
 ## File Structure
