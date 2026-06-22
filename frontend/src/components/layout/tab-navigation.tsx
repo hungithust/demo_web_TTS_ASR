@@ -5,6 +5,7 @@ const tabs = [
   { label: "TTS", path: "/tts" },
   { label: "ASR", path: "/asr" },
   { label: "TTS Evaluation", path: "/evaluation" },
+  { label: "TTS Dataset", path: "/dataset" },
 ];
 
 export function TabNavigation() {
