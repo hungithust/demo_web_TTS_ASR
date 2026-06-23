@@ -23,11 +23,14 @@ class DatasetService:
                 counts[row.category] += 1
         return [{"category": c, "count": n} for c, n in counts.items()]
 
-    def list_samples(self, category: str | None = None) -> list[dict]:
+    def list_samples(self, category: str | None = None,
+                     fixed_only: bool = False) -> list[dict]:
         with self._session_factory() as s:
             q = select(Sample)
             if category:
                 q = q.where(Sample.category == category)
+            if fixed_only:
+                q = q.where(Sample.is_fixed == True)  # noqa: E712
             samples = s.exec(q).all()
             audios = s.exec(select(Audio)).all()
         by_sample: dict[str, list[dict]] = defaultdict(list)
@@ -35,7 +38,7 @@ class DatasetService:
             by_sample[a.sample_id].append({"model_id": a.model_id, "audio_url": a.audio_url})
         return [
             {"id": row.id, "text": row.text, "category": row.category,
-             "audios": by_sample.get(row.id, [])}
+             "is_fixed": row.is_fixed, "audios": by_sample.get(row.id, [])}
             for row in samples
         ]
 
@@ -56,4 +59,20 @@ class DatasetService:
                 s.commit()
             audios.append({"model_id": model_id, "audio_url": url})
 
-        return {"id": sample_id, "text": text, "category": category, "audios": audios}
+        return {"id": sample_id, "text": text, "category": category,
+                "is_fixed": False, "audios": audios}
+
+    def set_fixed(self, sample_id: str, is_fixed: bool) -> dict:
+        from app.errors import NoTrialAvailableError
+        with self._session_factory() as s:
+            row = s.get(Sample, sample_id)
+            if row is None:
+                raise NoTrialAvailableError("Unknown sample")
+            row.is_fixed = is_fixed
+            s.add(row)
+            s.commit()
+            audios = s.exec(select(Audio).where(Audio.sample_id == sample_id)).all()
+            return {"id": row.id, "text": row.text, "category": row.category,
+                    "is_fixed": row.is_fixed,
+                    "audios": [{"model_id": a.model_id, "audio_url": a.audio_url}
+                               for a in audios]}
