@@ -2,41 +2,29 @@ from fastapi import APIRouter, Request
 
 from app.config import get_settings
 from app.schemas_eval import (
-    MosNextResponse,
-    MosSubmitRequest,
-    CmosNextResponse,
-    CmosSubmitRequest,
+    SessionStartRequest,
+    SessionStartResponse,
+    SessionCompleteRequest,
     SubmitResponse,
 )
 
 router = APIRouter(prefix="/api/eval", tags=["eval"])
 
 
-@router.get("/mos/next", response_model=MosNextResponse)
-async def mos_next(session_id: str, request: Request):
-    svc = request.app.state.eval_service
-    trial = svc.next_mos(session_id)
-    url = svc.mos_audio_url(trial.sample_id, trial.model_id)
-    return MosNextResponse(trial_id=trial.id, sample_id=trial.sample_id, audio_url=url)
-
-
-@router.post("/mos/submit", response_model=SubmitResponse)
-async def mos_submit(req: MosSubmitRequest, request: Request):
-    request.app.state.eval_service.submit_mos(req.trial_id, req.score, req.session_id)
-    return SubmitResponse()
-
-
-@router.get("/cmos/next", response_model=CmosNextResponse)
-async def cmos_next(session_id: str, request: Request):
-    trial, url1, url2 = request.app.state.eval_service.next_cmos(session_id)
-    return CmosNextResponse(
-        trial_id=trial.id, sample_id=trial.sample_id, slot1_url=url1, slot2_url=url2
+@router.post("/session/start", response_model=SessionStartResponse)
+async def session_start(req: SessionStartRequest, request: Request):
+    size = get_settings().eval_session_size
+    return request.app.state.eval_service.start_session(
+        req.kind, req.client_session_id, size
     )
 
 
-@router.post("/cmos/submit", response_model=SubmitResponse)
-async def cmos_submit(req: CmosSubmitRequest, request: Request):
-    request.app.state.eval_service.submit_cmos(req.trial_id, req.choice, req.session_id)
+@router.post("/session/complete", response_model=SubmitResponse)
+async def session_complete(req: SessionCompleteRequest, request: Request):
+    answers = [a.model_dump(exclude_none=True) for a in req.answers]
+    request.app.state.eval_service.complete_session(
+        req.eval_session_id, req.client_session_id, answers
+    )
     return SubmitResponse()
 
 

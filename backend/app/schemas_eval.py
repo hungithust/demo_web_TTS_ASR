@@ -4,43 +4,44 @@ _VALID_SCORES = {i * 0.5 for i in range(0, 11)}  # 0, 0.5, ..., 5
 _VALID_CHOICES = {"slot1", "slot2", "same"}
 
 
-class MosNextResponse(BaseModel):
-    trial_id: str
-    sample_id: str
-    audio_url: str
+class SessionStartRequest(BaseModel):
+    kind: str
+    client_session_id: str
 
-
-class MosSubmitRequest(BaseModel):
-    trial_id: str
-    score: float
-    session_id: str
-
-    @field_validator("score")
+    @field_validator("kind")
     @classmethod
-    def score_in_band(cls, v: float) -> float:
-        if v not in _VALID_SCORES:
-            raise ValueError("score must be one of 0, 0.5, 1, ..., 5")
+    def kind_valid(cls, v: str) -> str:
+        if v not in ("mos", "cmos"):
+            raise ValueError("kind must be 'mos' or 'cmos'")
         return v
 
 
-class CmosNextResponse(BaseModel):
+class SessionItem(BaseModel):
     trial_id: str
     sample_id: str
-    slot1_url: str
-    slot2_url: str
+    text: str
+    audio_url: str | None = None      # MOS
+    slot1_url: str | None = None      # CMOS
+    slot2_url: str | None = None      # CMOS
 
 
-class CmosSubmitRequest(BaseModel):
+class SessionStartResponse(BaseModel):
+    eval_session_id: str
+    kind: str
+    size: int
+    items: list[SessionItem]
+
+
+class SessionAnswer(BaseModel):
     trial_id: str
-    choice: str
-    session_id: str
+    score: float | None = None
+    choice: str | None = None
 
-    @field_validator("choice")
-    @classmethod
-    def choice_valid(cls, v: str) -> str:
-        if v not in _VALID_CHOICES:
-            raise ValueError("choice must be one of 'slot1', 'slot2', 'same'")
-        return v
+
+class SessionCompleteRequest(BaseModel):
+    eval_session_id: str
+    client_session_id: str
+    answers: list[SessionAnswer]
 
 
 class SubmitResponse(BaseModel):
