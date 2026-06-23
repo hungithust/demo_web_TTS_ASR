@@ -2,25 +2,24 @@ export type EvaluationMode = "mos" | "cmos";
 
 export type ComparisonChoice = "A" | "same" | "B";
 
-export type MosSample = {
+export type SessionItem = {
+  trial_id: string;
   sample_id: string;
-  trial_id: string;
-  audio_url: string;
+  text: string;
+  audio_url?: string | null;   // MOS
+  slot1_url?: string | null;   // CMOS
+  slot2_url?: string | null;   // CMOS
 };
 
-export type CmosSample = {
-  sample_id: string;
-  trial_id: string;
-  audio_a: string;
-  audio_b: string;
+export type EvalSession = {
+  eval_session_id: string;
+  kind: EvaluationMode;
+  size: number;
+  items: SessionItem[];
 };
 
-export type SubmitMosScoreRequest = {
+export type SessionAnswer = {
   trial_id: string;
-  score: number;
-};
-
-export type SubmitCmosChoiceRequest = {
-  trial_id: string;
-  choice: ComparisonChoice;
+  score?: number;     // MOS
+  choice?: "slot1" | "slot2" | "same";  // CMOS
 };

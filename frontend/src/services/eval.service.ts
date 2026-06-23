@@ -1,22 +1,16 @@
 import { apiBaseUrl, fetchJson, resolveAssetUrl, simulateLatency } from "@/services/api";
-import { cmosSamples } from "@/data/cmosSamples";
-import { mosSamples } from "@/data/mosSamples";
 import type {
-  CmosSample,
-  MosSample,
-  SubmitCmosChoiceRequest,
-  SubmitMosScoreRequest,
+  EvalSession,
+  EvaluationMode,
+  SessionAnswer,
+  SessionItem,
 } from "@/types/eval.types";
 
-// When no backend is configured, fall back to local mock data so the UI can be
-// exercised / screenshotted standalone. Set VITE_API_BASE_URL to use the API.
 const useMock = apiBaseUrl === "";
-
-// ---- session ----------------------------------------------------------------
 
 const SESSION_KEY = "eval_session_id";
 
-function getSessionId(): string {
+function getClientSessionId(): string {
   let id = localStorage.getItem(SESSION_KEY);
   if (!id) {
     id = crypto.randomUUID();
@@ -25,139 +19,61 @@ function getSessionId(): string {
   return id;
 }
 
-// ---- backend payload shapes -------------------------------------------------
+const MOCK_SIZE = 5;
 
-type MosNextResponse = { trial_id: string; sample_id: string; audio_url: string };
-type CmosNextResponse = {
-  trial_id: string;
-  sample_id: string;
-  slot1_url: string;
-  slot2_url: string;
-};
+function buildMockSession(kind: EvaluationMode): EvalSession {
+  const items: SessionItem[] = Array.from({ length: MOCK_SIZE }).map((_, i) => ({
+    trial_id: `t_mock_${kind}_${i}_${Date.now()}`,
+    sample_id: `s_mock_${i}`,
+    text: `Câu mẫu số ${i + 1} để đối chiếu giọng đọc.`,
+    ...(kind === "mos"
+      ? { audio_url: "/static/audio/mock_a.wav" }
+      : { slot1_url: "/static/audio/mock_a.wav", slot2_url: "/static/audio/mock_b.wav" }),
+  }));
+  return { eval_session_id: `es_mock_${Date.now()}`, kind, size: MOCK_SIZE, items };
+}
 
-type SlotChoice = "slot1" | "slot2" | "same";
-
-// Order-bias removal happens on the FE: the backend always returns a fixed
-// slot1/slot2 order; we randomly map them onto the displayed A/B positions and
-// remember the mapping so we can translate the user's A/B/same choice back to a
-// slot before submitting.
-const trialDisplayMap = new Map<string, { A: SlotChoice; B: SlotChoice }>();
-
-// ---- mock fallback ----------------------------------------------------------
-
-let mockMosCursor = 0;
-let mockCmosCursor = 0;
-
-function randomizeCmos(sample: CmosSample): CmosSample {
-  const swap = Math.random() < 0.5;
+function resolveSession(session: EvalSession): EvalSession {
   return {
-    sample_id: sample.sample_id,
-    trial_id: sample.trial_id,
-    audio_a: swap ? sample.audio_b : sample.audio_a,
-    audio_b: swap ? sample.audio_a : sample.audio_b,
+    ...session,
+    items: session.items.map((it) => ({
+      ...it,
+      audio_url: it.audio_url ? resolveAssetUrl(it.audio_url) : it.audio_url,
+      slot1_url: it.slot1_url ? resolveAssetUrl(it.slot1_url) : it.slot1_url,
+      slot2_url: it.slot2_url ? resolveAssetUrl(it.slot2_url) : it.slot2_url,
+    })),
   };
 }
 
-// ---- MOS --------------------------------------------------------------------
-
-async function getNextMosSample(): Promise<MosSample> {
+async function startSession(kind: EvaluationMode): Promise<EvalSession> {
   if (useMock) {
     await simulateLatency();
-    const sample = mosSamples[mockMosCursor % mosSamples.length];
-    mockMosCursor += 1;
-    return sample;
+    return resolveSession(buildMockSession(kind));
   }
-
-  const session_id = getSessionId();
-  const data = await fetchJson<MosNextResponse>(
-    `/api/eval/mos/next?session_id=${encodeURIComponent(session_id)}`,
-  );
-  return {
-    sample_id: data.sample_id,
-    trial_id: data.trial_id,
-    audio_url: resolveAssetUrl(data.audio_url),
-  };
+  const data = await fetchJson<EvalSession>("/api/eval/session/start", {
+    method: "POST",
+    body: JSON.stringify({ kind, client_session_id: getClientSessionId() }),
+  });
+  return resolveSession(data);
 }
 
-async function submitMosScore(payload: SubmitMosScoreRequest): Promise<void> {
+async function completeSession(
+  evalSessionId: string,
+  answers: SessionAnswer[],
+): Promise<void> {
   if (useMock) {
     await simulateLatency();
     return;
   }
-
-  await fetchJson<{ ok: boolean }>("/api/eval/mos/submit", {
+  await fetchJson<{ ok: boolean }>("/api/eval/session/complete", {
     method: "POST",
     body: JSON.stringify({
-      trial_id: payload.trial_id,
-      score: payload.score,
-      session_id: getSessionId(),
+      eval_session_id: evalSessionId,
+      client_session_id: getClientSessionId(),
+      answers,
     }),
   });
 }
 
-// ---- CMOS -------------------------------------------------------------------
-
-async function getNextCmosSample(): Promise<CmosSample> {
-  if (useMock) {
-    await simulateLatency();
-    const sample = cmosSamples[mockCmosCursor % cmosSamples.length];
-    mockCmosCursor += 1;
-    return randomizeCmos(sample);
-  }
-
-  const session_id = getSessionId();
-  const data = await fetchJson<CmosNextResponse>(
-    `/api/eval/cmos/next?session_id=${encodeURIComponent(session_id)}`,
-  );
-
-  // randomly assign slot1/slot2 to A/B
-  const swap = Math.random() < 0.5;
-  const aSlot: SlotChoice = swap ? "slot2" : "slot1";
-  const bSlot: SlotChoice = swap ? "slot1" : "slot2";
-  trialDisplayMap.set(data.trial_id, { A: aSlot, B: bSlot });
-
-  return {
-    sample_id: data.sample_id,
-    trial_id: data.trial_id,
-    audio_a: resolveAssetUrl(swap ? data.slot2_url : data.slot1_url),
-    audio_b: resolveAssetUrl(swap ? data.slot1_url : data.slot2_url),
-  };
-}
-
-async function submitCmosChoice(payload: SubmitCmosChoiceRequest): Promise<void> {
-  if (useMock) {
-    await simulateLatency();
-    return;
-  }
-
-  const mapping = trialDisplayMap.get(payload.trial_id);
-  let choice: SlotChoice;
-  if (payload.choice === "same") {
-    choice = "same";
-  } else if (mapping) {
-    choice = mapping[payload.choice];
-  } else {
-    // fallback: no mapping recorded (e.g. page reload) — assume A=slot1
-    choice = payload.choice === "A" ? "slot1" : "slot2";
-  }
-
-  await fetchJson<{ ok: boolean }>("/api/eval/cmos/submit", {
-    method: "POST",
-    body: JSON.stringify({
-      trial_id: payload.trial_id,
-      choice,
-      session_id: getSessionId(),
-    }),
-  });
-
-  trialDisplayMap.delete(payload.trial_id);
-}
-
-export const evalService = {
-  getNextMosSample,
-  submitMosScore,
-  getNextCmosSample,
-  submitCmosChoice,
-};
-
-export { getNextMosSample, submitMosScore, getNextCmosSample, submitCmosChoice };
+export const evalService = { startSession, completeSession };
+export { startSession, completeSession };
