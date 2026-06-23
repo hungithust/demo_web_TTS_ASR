@@ -16,3 +16,9 @@ def test_cors_origins_csv(monkeypatch):
     monkeypatch.setenv("CORS_ORIGINS", "http://a.com,http://b.com")
     s = Settings()
     assert s.cors_origins == ["http://a.com", "http://b.com"]
+
+
+def test_eval_session_size_default(monkeypatch):
+    monkeypatch.delenv("EVAL_SESSION_SIZE", raising=False)
+    from app.config import Settings
+    assert Settings().eval_session_size == 20
