@@ -80,6 +80,25 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
   return (await response.json()) as T;
 }
 
+/**
+ * Fetch a backend asset (e.g. /static/audio/x.wav) as an object URL.
+ *
+ * The plain `<audio src>` request cannot carry custom headers, so when the API
+ * lives behind ngrok-free the browser receives the interstitial warning page
+ * instead of the file and blocks it (ERR_BLOCKED_BY_ORB). Fetching here lets us
+ * attach `ngrok-skip-browser-warning` and hand the audio element a blob URL.
+ */
+export async function fetchAssetObjectUrl(url: string): Promise<string> {
+  const response = await fetch(url, {
+    headers: { "ngrok-skip-browser-warning": "true" },
+  });
+  if (!response.ok) {
+    throw new Error(`Asset request failed (${response.status})`);
+  }
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
+}
+
 export async function getHealth(): Promise<HealthResponse> {
   if (apiBaseUrl === "") {
     await simulateLatency();

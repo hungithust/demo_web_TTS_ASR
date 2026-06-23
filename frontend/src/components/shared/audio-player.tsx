@@ -1,6 +1,7 @@
 import { Download, Pause, Play } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { apiBaseUrl, fetchAssetObjectUrl } from "@/services/api";
 
 export interface AudioPlayerProps {
   label: string;
@@ -33,7 +34,42 @@ export function AudioPlayer({
   const [current, setCurrent] = useState(0);
   const [total, setTotal] = useState(0);
   const [fallbackDuration, setFallbackDuration] = useState(durationLabel);
+  const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Remote API assets (e.g. /static/audio served behind ngrok) can't be loaded
+  // by a bare <audio src> because the request lacks the skip-warning header.
+  // Fetch those as a blob URL; everything else (local paths, blob: URLs) is used
+  // as-is.
+  const needsProxy = Boolean(src) && apiBaseUrl !== "" && src!.startsWith(apiBaseUrl);
+
+  useEffect(() => {
+    if (!needsProxy || !src) {
+      setResolvedSrc(null);
+      return;
+    }
+    let cancelled = false;
+    let created: string | null = null;
+    setResolvedSrc(null);
+    fetchAssetObjectUrl(src)
+      .then((objectUrl) => {
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+        created = objectUrl;
+        setResolvedSrc(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setResolvedSrc(null);
+      });
+    return () => {
+      cancelled = true;
+      if (created) URL.revokeObjectURL(created);
+    };
+  }, [needsProxy, src]);
+
+  const effectiveSrc = needsProxy ? resolvedSrc : src;
 
   const bars = useMemo(
     () => Array.from({ length: 56 }, (_, i) => 14 + Math.round(56 * Math.abs(Math.sin(i * 0.9 + 1)))),
@@ -45,11 +81,11 @@ export function AudioPlayer({
     setCurrent(0);
     setTotal(0);
     setFallbackDuration(durationLabel);
-  }, [durationLabel, src]);
+  }, [durationLabel, effectiveSrc]);
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !src) return;
+    if (!audio || !effectiveSrc) return;
 
     const onEndedEvent = () => {
       setPlaying(false);
@@ -77,10 +113,10 @@ export function AudioPlayer({
       audio.removeEventListener("loadedmetadata", onLoadedMetadata);
       audio.removeEventListener("timeupdate", onTimeUpdate);
     };
-  }, [onEnded, src]);
+  }, [onEnded, effectiveSrc]);
 
   async function togglePlayback() {
-    if (!src) {
+    if (!effectiveSrc) {
       setPlaying((value) => !value);
       return;
     }
@@ -97,9 +133,9 @@ export function AudioPlayer({
   }
 
   function handleDownload() {
-    if (!src) return;
+    if (!effectiveSrc) return;
     const anchor = document.createElement("a");
-    anchor.href = src;
+    anchor.href = effectiveSrc;
     anchor.download = downloadName ?? `${label}.wav`;
     document.body.appendChild(anchor);
     anchor.click();
@@ -165,7 +201,7 @@ export function AudioPlayer({
         <Download className="size-[18px]" />
       </button>
 
-      {src ? <audio ref={audioRef} src={src} preload="metadata" className="hidden" /> : null}
+      {effectiveSrc ? <audio ref={audioRef} src={effectiveSrc} preload="metadata" className="hidden" /> : null}
     </div>
   );
 }
