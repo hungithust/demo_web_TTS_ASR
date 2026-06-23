@@ -35,7 +35,9 @@ export function AudioPlayer({
   const [total, setTotal] = useState(0);
   const [fallbackDuration, setFallbackDuration] = useState(durationLabel);
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
+  const [activated, setActivated] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const wantPlayRef = useRef(false);
 
   // Remote API assets (e.g. /static/audio served behind ngrok) can't be loaded
   // by a bare <audio src> because the request lacks the skip-warning header.
@@ -43,14 +45,20 @@ export function AudioPlayer({
   // as-is.
   const needsProxy = Boolean(src) && apiBaseUrl !== "" && src!.startsWith(apiBaseUrl);
 
+  // Reset lazy-load state whenever the source changes.
   useEffect(() => {
-    if (!needsProxy || !src) {
-      setResolvedSrc(null);
-      return;
-    }
+    setActivated(false);
+    setResolvedSrc(null);
+    wantPlayRef.current = false;
+  }, [src]);
+
+  // Lazily fetch the blob only once the player has been activated (first play
+  // click). This keeps a list of many players (e.g. the Dataset tab) from firing
+  // hundreds of full-file requests at mount.
+  useEffect(() => {
+    if (!needsProxy || !src || !activated) return;
     let cancelled = false;
     let created: string | null = null;
-    setResolvedSrc(null);
     fetchAssetObjectUrl(src)
       .then((objectUrl) => {
         if (cancelled) {
@@ -67,9 +75,18 @@ export function AudioPlayer({
       cancelled = true;
       if (created) URL.revokeObjectURL(created);
     };
-  }, [needsProxy, src]);
+  }, [needsProxy, src, activated]);
 
   const effectiveSrc = needsProxy ? resolvedSrc : src;
+
+  // Start playback as soon as a lazily-fetched blob becomes available, if the
+  // user clicked play before it was ready.
+  useEffect(() => {
+    if (resolvedSrc && wantPlayRef.current) {
+      wantPlayRef.current = false;
+      void audioRef.current?.play().catch(() => {});
+    }
+  }, [resolvedSrc]);
 
   const bars = useMemo(
     () => Array.from({ length: 56 }, (_, i) => 14 + Math.round(56 * Math.abs(Math.sin(i * 0.9 + 1)))),
@@ -116,6 +133,14 @@ export function AudioPlayer({
   }, [onEnded, effectiveSrc]);
 
   async function togglePlayback() {
+    // First interaction with a remote asset: kick off the lazy blob fetch and
+    // remember that the user wants playback to start once it resolves.
+    if (needsProxy && !resolvedSrc) {
+      wantPlayRef.current = true;
+      setActivated(true);
+      return;
+    }
+
     if (!effectiveSrc) {
       setPlaying((value) => !value);
       return;

@@ -30,8 +30,11 @@ export function AdminGate({ children }: { children: ReactNode }) {
         {children}
       </div>
 
-      <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/40 backdrop-blur-sm">
-        <div className="w-full max-w-sm space-y-4 rounded-3xl border border-border bg-card p-6 shadow-lg">
+      {/* Fixed to the window so the box stays centered in the viewport, not in
+          the middle of the (possibly very tall) tab content. pointer-events-none
+          on the wrapper keeps the nav/header clickable so the user can leave. */}
+      <div className="pointer-events-none fixed inset-0 z-20 flex items-center justify-center p-4">
+        <div className="pointer-events-auto w-full max-w-sm space-y-4 rounded-3xl border border-border bg-card p-6 shadow-lg">
           <div>
             <h2 className="text-lg font-semibold">Khu vực quản trị</h2>
             <p className="mt-1 text-sm text-muted-foreground">
