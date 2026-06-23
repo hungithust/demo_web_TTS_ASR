@@ -18,7 +18,7 @@ export function SectionContainer({
     <section className={cn("space-y-4 sm:space-y-5", className)}>
       {title || action ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>{title ? <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</h2> : null}</div>
+          <div>{title ? <h2 className="font-display text-xl font-bold tracking-tight sm:text-2xl">{title}</h2> : null}</div>
           {action ? <div>{action}</div> : null}
         </div>
       ) : null}

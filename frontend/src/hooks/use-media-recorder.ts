@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { audioBlobToWav } from "@/lib/audio";
 import { useAsrStore } from "@/store/asr-store";
 
 function buildAudioFile(blob: Blob) {
@@ -11,6 +12,7 @@ export function useMediaRecorder() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const cancelledRef = useRef(false);
 
   const isRecording = useAsrStore((state) => state.isRecording);
   const setRecording = useAsrStore((state) => state.setRecording);
@@ -27,8 +29,20 @@ export function useMediaRecorder() {
   const stopRecording = useCallback(() => {
     const recorder = mediaRecorderRef.current;
     if (!recorder || recorder.state === "inactive") return;
+    cancelledRef.current = false;
     recorder.stop();
   }, []);
+
+  const cancelRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") {
+      setRecording(false);
+      stopStream();
+      return;
+    }
+    cancelledRef.current = true;
+    recorder.stop();
+  }, [setRecording, stopStream]);
 
   const startRecording = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -53,21 +67,37 @@ export function useMediaRecorder() {
         setError(null);
       };
       recorder.onstop = () => {
+        if (cancelledRef.current) {
+          cancelledRef.current = false;
+          chunksRef.current = [];
+          setRecording(false);
+          stopStream();
+          return;
+        }
+
         const blob = new Blob(chunksRef.current, {
           type: recorder.mimeType || "audio/webm",
         });
-        const file = buildAudioFile(blob);
-        const previewUrl = URL.createObjectURL(file);
-        setRecordedAudio({
-          file,
-          previewUrl,
-          fileName: file.name,
-          mimeType: file.type,
-        });
-        setActiveSource("record");
-        clearTranscription();
-        setRecording(false);
-        stopStream();
+        void audioBlobToWav(blob)
+          .then((wavBlob) => {
+            const file = buildAudioFile(wavBlob);
+            const previewUrl = URL.createObjectURL(file);
+            setRecordedAudio({
+              file,
+              previewUrl,
+              fileName: file.name,
+              mimeType: file.type,
+            });
+            setActiveSource("record");
+            clearTranscription();
+          })
+          .catch(() => {
+            setError("Could not process the recording. Please try again or upload a file.");
+          })
+          .finally(() => {
+            setRecording(false);
+            stopStream();
+          });
       };
       recorder.onerror = () => {
         setError("Unable to record microphone audio.");
@@ -92,5 +122,6 @@ export function useMediaRecorder() {
     isRecording,
     startRecording,
     stopRecording,
+    cancelRecording,
   };
 }

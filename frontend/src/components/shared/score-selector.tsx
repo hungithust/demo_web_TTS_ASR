@@ -13,22 +13,18 @@ export interface ScoreSelectorProps {
   className?: string;
 }
 
-function getPrecision(step: number) {
-  const raw = `${step}`;
-  return raw.includes(".") ? raw.split(".")[1].length : 0;
-}
-
-function snapToStep(value: number, min: number, max: number, step: number) {
-  const precision = getPrecision(step);
-  const safeStep = step > 0 ? step : 1;
-  const clamped = Math.min(max, Math.max(min, value));
-  const snapped = Math.round((clamped - min) / safeStep) * safeStep + min;
-
-  return Number(snapped.toFixed(precision));
-}
-
 function formatScore(score: number) {
   return score % 1 === 0 ? `${score}` : score.toFixed(1);
+}
+
+function buildScores(min: number, max: number, step: number) {
+  const scores: number[] = [];
+  const precision = step % 1 === 0 ? 0 : `${step}`.split(".")[1].length;
+  const safeStep = step > 0 ? step : 1;
+  for (let current = min; current <= max + safeStep / 2; current += safeStep) {
+    scores.push(Number(current.toFixed(precision)));
+  }
+  return scores;
 }
 
 export function ScoreSelector({
@@ -43,52 +39,42 @@ export function ScoreSelector({
   disabled = false,
   className,
 }: ScoreSelectorProps) {
-  const displayValue = value ?? min;
-  const displayText = value === null ? "--" : formatValue(value);
-  const percent = ((displayValue - min) / (max - min || 1)) * 100;
+  const scores = buildScores(min, max, step);
 
   return (
-    <div className={cn("mx-auto w-full max-w-lg space-y-3", className)}>
+    <div className={cn("mx-auto w-full max-w-3xl space-y-3", className)}>
       <div className="flex items-center justify-center gap-2 text-base font-semibold text-foreground sm:text-lg">
         <span className="text-muted-foreground">{label}:</span>
-        <span className="tabular-nums">{displayText}</span>
+        <span className="tabular-nums">{value === null ? "--" : formatValue(value)}</span>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card px-4 py-4 shadow-sm">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={displayValue}
-          aria-label={ariaLabel}
-          disabled={disabled}
-          onChange={(event) => {
-            const nextValue = Number(event.target.value);
-            onChange(snapToStep(nextValue, min, max, step));
-          }}
-          style={{
-            background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${percent}%, hsl(var(--muted)) ${percent}%, hsl(var(--muted)) 100%)`,
-          }}
-          className={cn(
-            "h-3 w-full cursor-pointer appearance-none rounded-full bg-transparent outline-none transition",
-            "focus-visible:outline-none",
-            "disabled:cursor-not-allowed disabled:opacity-60",
-            "[&::-webkit-slider-runnable-track]:h-3 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-transparent",
-            "[&::-webkit-slider-thumb]:-mt-1.5 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-background [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition [&::-webkit-slider-thumb]:duration-150 hover:[&::-webkit-slider-thumb]:scale-105 focus-visible:[&::-webkit-slider-thumb]:scale-110 focus-visible:[&::-webkit-slider-thumb]:shadow-lg",
-            "[&::-moz-range-track]:h-3 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-transparent",
-            "[&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-background [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:transition [&::-moz-range-thumb]:duration-150",
-            "hover:[&::-moz-range-thumb]:scale-105 focus-visible:[&::-moz-range-thumb]:scale-110 focus-visible:[&::-moz-range-thumb]:shadow-lg",
-          )}
-        />
-
-        <div className="mt-3 grid grid-cols-[auto_1fr_auto] items-center text-sm text-muted-foreground">
-          <span className="text-base font-bold tabular-nums text-foreground">{formatValue(min)}</span>
-          <span className="justify-self-center text-xs font-medium tabular-nums text-muted-foreground">
-            {formatValue((min + max) / 2)}
-        </span>
-          <span className="justify-self-end text-base font-bold tabular-nums text-foreground">{formatValue(max)}</span>
-        </div>
+      <div
+        role="group"
+        aria-label={ariaLabel}
+        className="flex flex-wrap justify-center gap-2 rounded-md border border-border bg-card px-3 py-4 shadow-sm"
+      >
+        {scores.map((score) => {
+          const active = value === score;
+          return (
+            <button
+              key={score}
+              type="button"
+              disabled={disabled}
+              aria-pressed={active}
+              onClick={() => onChange(score)}
+              className={cn(
+                "min-w-12 rounded-md border px-3 py-2 text-sm font-semibold tabular-nums transition",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                disabled && "cursor-not-allowed opacity-60",
+                active
+                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                  : "border-border bg-background text-foreground hover:border-primary/50 hover:bg-primary/5",
+              )}
+            >
+              {formatValue(score)}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

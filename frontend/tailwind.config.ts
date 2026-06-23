@@ -38,25 +38,26 @@ export default {
         "3xl": "2rem",
       },
       boxShadow: {
-        soft: "0 16px 40px rgba(15, 23, 42, 0.08)",
+        soft: "0 12px 28px rgba(33, 29, 31, 0.12), 0 4px 8px rgba(33, 29, 31, 0.06)",
+        brand: "0 8px 20px rgba(234, 10, 41, 0.28)",
       },
       keyframes: {
         fadeUp: {
           "0%": { opacity: "0", transform: "translateY(10px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        wave: {
+          "0%,100%": { transform: "scaleY(0.32)" },
+          "50%": { transform: "scaleY(1)" },
+        },
       },
       animation: {
-        fadeUp: "fadeUp 0.35s ease-out",
+        fadeUp: "fadeUp 0.34s cubic-bezier(0.16,1,0.3,1)",
       },
       fontFamily: {
-        sans: [
-          '"Inter var"',
-          "Inter",
-          "ui-sans-serif",
-          "system-ui",
-          "sans-serif",
-        ],
+        sans: ['"Plus Jakarta Sans"', "system-ui", "sans-serif"],
+        display: ['"Plus Jakarta Sans"', "system-ui", "sans-serif"],
+        mono: ['"JetBrains Mono"', '"SF Mono"', "ui-monospace", "monospace"],
       },
     },
   },

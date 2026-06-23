@@ -1,7 +1,10 @@
 import { create } from "zustand";
-import { ttsService } from "@/services/tts.service";
+import { ttsExampleRows } from "@/data/ttsExamples";
 import { base64AudioToObjectUrl } from "@/lib/audio";
 import { getApiMessage } from "@/services/api";
+import { ttsService } from "@/services/tts.service";
+import type { DebugInfo } from "@/types/debug.types";
+import type { Gender, Region } from "@/types/tts.types";
 
 export interface TtsAudioState {
   src: string | null;
@@ -16,9 +19,18 @@ export interface TtsState {
   isConverting: boolean;
   error: string | null;
   audio: TtsAudioState;
+  gender: Gender;
+  region: Region;
+  enableNorm: boolean;
+  debug: boolean;
+  debugInfo: DebugInfo | null;
   setText: (text: string) => void;
   setSelectedModel: (model: string) => void;
   setAudio: (audio: TtsAudioState) => void;
+  setGender: (gender: Gender) => void;
+  setRegion: (region: Region) => void;
+  setEnableNorm: (value: boolean) => void;
+  setDebug: (debug: boolean) => void;
   clearText: () => void;
   useExampleText: (text?: string) => void;
   copyText: () => Promise<void>;
@@ -27,20 +39,31 @@ export interface TtsState {
   resetAudio: () => void;
 }
 
+const defaultText = ttsExampleRows[0]?.text ?? "";
+
 export const useTtsStore = create<TtsState>((set, get) => ({
-  text: "",
+  text: defaultText,
   selectedModel: "",
   models: [],
   isLoadingModels: false,
   isConverting: false,
   error: null,
   audio: { src: null, fileName: null },
+  gender: "female",
+  region: "north",
+  enableNorm: true,
+  debug: false,
+  debugInfo: null,
   setText: (text) => set({ text }),
   setSelectedModel: (model) =>
     set((state) => ({
       selectedModel: state.models.includes(model) ? model : state.models[0] || "",
     })),
   setAudio: (audio) => set({ audio }),
+  setGender: (gender) => set({ gender }),
+  setRegion: (region) => set({ region }),
+  setEnableNorm: (enableNorm) => set({ enableNorm }),
+  setDebug: (debug) => set({ debug, debugInfo: debug ? get().debugInfo : null }),
   clearText: () =>
     set((state) => {
       if (state.audio.src) {
@@ -54,7 +77,7 @@ export const useTtsStore = create<TtsState>((set, get) => ({
         URL.revokeObjectURL(state.audio.src);
       }
       return {
-        text: text ?? "",
+        text: text ?? defaultText,
         audio: { src: null, fileName: null },
         error: null,
       };
@@ -77,7 +100,7 @@ export const useTtsStore = create<TtsState>((set, get) => ({
       }
       set((state) => ({
         models,
-        selectedModel: state.selectedModel && models.includes(state.selectedModel) ? state.selectedModel : models[0] || "",
+        selectedModel: state.selectedModel || models[0] || "",
       }));
     } catch (error) {
       set({ error: getApiMessage(error, "Failed to load TTS models.") });
@@ -86,7 +109,7 @@ export const useTtsStore = create<TtsState>((set, get) => ({
     }
   },
   convert: async () => {
-    const { text, selectedModel, audio } = get();
+    const { text, selectedModel, audio, gender, region, enableNorm, debug } = get();
 
     if (!text.trim()) {
       set({ error: "Text is required." });
@@ -103,6 +126,9 @@ export const useTtsStore = create<TtsState>((set, get) => ({
       const response = await ttsService.convertText({
         text,
         model_name: selectedModel,
+        voice: `${gender}-${region}`,
+        enable_norm: enableNorm,
+        debug,
       });
 
       const nextSrc = base64AudioToObjectUrl(response.voice, "audio/wav");
@@ -113,6 +139,7 @@ export const useTtsStore = create<TtsState>((set, get) => ({
           src: nextSrc,
           fileName: `${selectedModel || "tts-output"}.wav`,
         },
+        debugInfo: response.debug ?? null,
       });
       if (previousSrc) {
         URL.revokeObjectURL(previousSrc);

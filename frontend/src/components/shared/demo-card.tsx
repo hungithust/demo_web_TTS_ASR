@@ -23,7 +23,7 @@ export function DemoCard({
         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           {icon ?? <Sparkles className="size-4" />}
         </div>
-        <h3 className="text-2xl font-semibold tracking-tight">{title}</h3>
+        <h3 className="font-display text-2xl font-bold tracking-tight">{title}</h3>
       </CardHeader>
       <CardContent className="space-y-4">{children}</CardContent>
     </Card>

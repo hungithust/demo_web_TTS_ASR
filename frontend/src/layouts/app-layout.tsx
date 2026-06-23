@@ -1,16 +1,16 @@
 import { Outlet } from "react-router-dom";
 import { Header } from "@/components/layout/header";
-import { Container } from "@/components/shared/container";
-import { cn } from "@/lib/utils";
+import { TabNavigation } from "@/components/layout/tab-navigation";
 
 export function AppLayout() {
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <Header />
-      <main className="pb-12 pt-6 sm:pt-8">
-        <Container className={cn("space-y-8", "animate-fadeUp")}>
+      <main className="mx-auto w-full max-w-[1060px] flex-1 px-4 pb-20 pt-6 sm:px-6">
+        <TabNavigation />
+        <div className="mt-6 animate-fadeUp">
           <Outlet />
-        </Container>
+        </div>
       </main>
     </div>
   );

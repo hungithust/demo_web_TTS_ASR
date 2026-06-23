@@ -29,7 +29,7 @@ export function PrimaryButton({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-2xl px-4 font-semibold shadow-sm transition",
+        "inline-flex items-center justify-center gap-2 rounded-md px-4 font-display font-bold shadow-sm transition",
         "disabled:pointer-events-none disabled:opacity-50",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         variantClasses[variant],

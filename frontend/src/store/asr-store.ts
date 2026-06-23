@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { getApiMessage } from "@/services/api";
 import { asrService, encodeAudioToBase64 } from "@/services/asr.service";
+import type { DebugInfo } from "@/types/debug.types";
 
 export type AsrAudioSource = {
   file: File;
@@ -19,10 +20,13 @@ export interface AsrState {
   isRecording: boolean;
   error: string | null;
   transcription: string;
+  debug: boolean;
+  debugInfo: DebugInfo | null;
   uploadedAudio: AsrAudioSource | null;
   recordedAudio: AsrAudioSource | null;
   activeSource: AsrActiveSource;
   setSelectedModel: (model: string) => void;
+  setDebug: (debug: boolean) => void;
   setUploadedAudio: (audio: AsrAudioSource | null) => void;
   setRecordedAudio: (audio: AsrAudioSource | null) => void;
   setActiveSource: (source: AsrActiveSource) => void;
@@ -57,6 +61,8 @@ export const useAsrStore = create<AsrState>((set, get) => ({
   isRecording: false,
   error: null,
   transcription: "",
+  debug: false,
+  debugInfo: null,
   uploadedAudio: null,
   recordedAudio: null,
   activeSource: null,
@@ -64,6 +70,7 @@ export const useAsrStore = create<AsrState>((set, get) => ({
     set((state) => ({
       selectedModel: state.models.includes(model) ? model : state.models[0] || "",
     })),
+  setDebug: (debug) => set({ debug, debugInfo: debug ? get().debugInfo : null }),
   setUploadedAudio: (audio) =>
     set((state) => {
       revokeAudio(state.uploadedAudio);
@@ -86,7 +93,7 @@ export const useAsrStore = create<AsrState>((set, get) => ({
   setRecording: (value) => set({ isRecording: value }),
   setError: (value) => set({ error: value }),
   clearError: () => set({ error: null }),
-  clearTranscription: () => set({ transcription: "", error: null }),
+  clearTranscription: () => set({ transcription: "", debugInfo: null, error: null }),
   clearUploadedAudio: () =>
     set((state) => {
       revokeAudio(state.uploadedAudio);
@@ -122,7 +129,7 @@ export const useAsrStore = create<AsrState>((set, get) => ({
       }
       set((state) => ({
         models,
-        selectedModel: state.selectedModel && models.includes(state.selectedModel) ? state.selectedModel : models[0] || "",
+        selectedModel: state.selectedModel || models[0] || "",
       }));
     } catch (error) {
       set({ error: getApiMessage(error, "Failed to load ASR models.") });
@@ -150,6 +157,7 @@ export const useAsrStore = create<AsrState>((set, get) => ({
       const response = await asrService.convertAudio({
         voice,
         model_name: state.selectedModel,
+        debug: state.debug,
       });
 
       if (!response?.text || !response.text.trim()) {
@@ -158,6 +166,7 @@ export const useAsrStore = create<AsrState>((set, get) => ({
 
       set({
         transcription: response.text,
+        debugInfo: response.debug ?? null,
       });
     } catch (error) {
       set({ error: getApiMessage(error, "ASR conversion failed.") });

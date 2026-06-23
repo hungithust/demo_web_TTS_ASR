@@ -1,6 +1,4 @@
 node_modules
 dist
 .git
-.env
-.env.*
-npm-debug.log
+frontend_new
