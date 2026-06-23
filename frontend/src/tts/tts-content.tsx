@@ -28,10 +28,10 @@ const TTS_ROWS: ExampleCell[][] = ttsExampleRows.map((row) => [
 ]);
 
 const VOICE_LABELS: Record<string, string> = {
-  "male-north": "Giọng nam · miền Bắc",
-  "male-south": "Giọng nam · miền Nam",
-  "female-north": "Giọng nữ · miền Bắc",
-  "female-south": "Giọng nữ · miền Nam",
+  "male-north": "Male · North",
+  "male-south": "Male · South",
+  "female-north": "Female · North",
+  "female-south": "Female · South",
 };
 
 function Eyebrow({ children }: { children: ReactNode }) {

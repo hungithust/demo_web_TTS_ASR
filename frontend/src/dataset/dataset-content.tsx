@@ -125,7 +125,7 @@ export function DatasetContent() {
           <textarea
             value={newText}
             onChange={(e) => setNewText(e.target.value)}
-            placeholder="Nhập câu test..."
+            placeholder="Enter a test sentence..."
             rows={2}
             className="rounded-2xl border border-border bg-card p-3 text-sm"
           />

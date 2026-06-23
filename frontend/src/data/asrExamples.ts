@@ -14,7 +14,7 @@ export const asrExampleRows: AsrExampleRow[] = [
   {
     id: "vi-sample-1",
     audioTitle: "vi_sample_1.wav",
-    audioDescription: "Giọng đọc tiếng Việt tự nhiên.",
+    audioDescription: "Natural Vietnamese narration.",
     durationLabel: "0:04",
     audioSrc: "/examples/asr/vi_sample_1.wav",
     transcripts: [
@@ -26,7 +26,7 @@ export const asrExampleRows: AsrExampleRow[] = [
   {
     id: "vi-sample-2",
     audioTitle: "vi_sample_2.wav",
-    audioDescription: "Câu ngắn chủ đề y tế.",
+    audioDescription: "Short sentence, medical topic.",
     durationLabel: "0:02",
     audioSrc: "/examples/asr/vi_sample_2.wav",
     transcripts: [
@@ -38,7 +38,7 @@ export const asrExampleRows: AsrExampleRow[] = [
   {
     id: "vi-sample-3",
     audioTitle: "vi_sample_3.wav",
-    audioDescription: "Câu lệnh điều khiển thiết bị.",
+    audioDescription: "Device control command.",
     durationLabel: "0:02",
     audioSrc: "/examples/asr/vi_sample_3.wav",
     transcripts: [
