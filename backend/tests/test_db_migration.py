@@ -32,3 +32,31 @@ def test_migration_is_idempotent():
     _migrate_samples_category(engine)
     _migrate_samples_category(engine)  # second call must not raise
     assert "category" in _columns(engine, "samples")
+
+
+from app.db import _migrate_samples_is_fixed, _migrate_trials_eval_session
+
+
+def test_migration_adds_is_fixed_to_legacy_samples():
+    engine = create_engine("sqlite://")
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE samples (id VARCHAR PRIMARY KEY, text VARCHAR)"))
+    _migrate_samples_is_fixed(engine)
+    assert "is_fixed" in _columns(engine, "samples")
+
+
+def test_migration_adds_eval_session_id_to_legacy_trials():
+    engine = create_engine("sqlite://")
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE trials (id VARCHAR PRIMARY KEY, kind VARCHAR)"))
+    _migrate_trials_eval_session(engine)
+    assert "eval_session_id" in _columns(engine, "trials")
+
+
+def test_fixed_migration_idempotent():
+    engine = create_engine("sqlite://")
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE samples (id VARCHAR PRIMARY KEY, text VARCHAR)"))
+    _migrate_samples_is_fixed(engine)
+    _migrate_samples_is_fixed(engine)  # must not raise
+    assert "is_fixed" in _columns(engine, "samples")

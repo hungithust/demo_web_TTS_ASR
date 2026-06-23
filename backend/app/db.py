@@ -20,6 +20,28 @@ def _migrate_samples_category(engine) -> None:
             conn.execute(text("ALTER TABLE samples ADD COLUMN category VARCHAR"))
 
 
+def _migrate_samples_is_fixed(engine) -> None:
+    """Add samples.is_fixed to legacy DBs. No-op on fresh/new DBs."""
+    inspector = inspect(engine)
+    if "samples" not in inspector.get_table_names():
+        return
+    cols = {c["name"] for c in inspector.get_columns("samples")}
+    if "is_fixed" not in cols:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE samples ADD COLUMN is_fixed BOOLEAN DEFAULT 0"))
+
+
+def _migrate_trials_eval_session(engine) -> None:
+    """Add trials.eval_session_id to legacy DBs. No-op on fresh/new DBs."""
+    inspector = inspect(engine)
+    if "trials" not in inspector.get_table_names():
+        return
+    cols = {c["name"] for c in inspector.get_columns("trials")}
+    if "eval_session_id" not in cols:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE trials ADD COLUMN eval_session_id VARCHAR"))
+
+
 def _ensure_sqlite_dir(database_url: str) -> None:
     """Create the parent directory for a sqlite file DB if needed."""
     if not database_url.startswith("sqlite"):
@@ -39,6 +61,8 @@ def init_db(settings) -> None:
     _engine = create_engine(settings.database_url, connect_args=connect_args)
     SQLModel.metadata.create_all(_engine)
     _migrate_samples_category(_engine)
+    _migrate_samples_is_fixed(_engine)
+    _migrate_trials_eval_session(_engine)
 
 
 def get_engine():
