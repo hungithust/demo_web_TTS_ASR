@@ -72,7 +72,7 @@ export function EvaluationPage() {
       resetItemState();
       setPhase("in_progress");
     } catch (e) {
-      setError(getApiMessage(e, "Không thể bắt đầu phiên đánh giá"));
+      setError(getApiMessage(e, "Could not start the evaluation session"));
     } finally {
       setStarting(false);
     }
@@ -80,7 +80,7 @@ export function EvaluationPage() {
 
   function switchMode(next: EvaluationMode) {
     if (next === mode) return;
-    if (inProgress && !window.confirm("Bạn đang đánh giá dở. Chuyển chế độ sẽ huỷ phiên hiện tại và không lưu kết quả. Tiếp tục?")) {
+    if (inProgress && !window.confirm("You have an evaluation in progress. Switching modes will cancel the current session and your results won't be saved. Continue?")) {
       return;
     }
     setMode(next);
@@ -127,7 +127,7 @@ export function EvaluationPage() {
       await evalService.completeSession(session.eval_session_id, nextAnswers);
       setPhase("done");
     } catch (e) {
-      setError(getApiMessage(e, "Không thể ghi nhận kết quả"));
+      setError(getApiMessage(e, "Could not submit your results"));
       setPhase("in_progress"); // allow retry of the final submit
       setAnswers(answers);     // drop the last (failed) answer so it can be resubmitted
     }
@@ -167,24 +167,24 @@ export function EvaluationPage() {
 
           {phase === "notice" ? (
             <div className="space-y-4 text-center">
-              <h2 className="text-lg font-semibold">Phiên đánh giá {mode.toUpperCase()}</h2>
+              <h2 className="text-lg font-semibold">{mode.toUpperCase()} evaluation session</h2>
               <p className="mx-auto max-w-md text-sm text-muted-foreground">
-                Phiên gồm tối đa {/* size known after start */}một số câu cố định. Bạn phải hoàn thành
-                <strong> toàn bộ </strong> các câu thì kết quả mới được ghi nhận. Nếu thoát giữa chừng,
-                kết quả sẽ không được lưu.
+                A session includes a set of fixed anchor items. You must complete
+                <strong> all </strong> items for your results to be recorded. If you leave
+                midway, nothing will be saved.
               </p>
               <PrimaryButton type="button" size="md" disabled={starting} onClick={() => void handleStart()}>
-                {starting ? "Đang chuẩn bị..." : "Bắt đầu"}
+                {starting ? "Preparing..." : "Start"}
               </PrimaryButton>
             </div>
           ) : null}
 
           {phase === "done" ? (
             <div className="space-y-4 text-center">
-              <h2 className="text-lg font-semibold">Đã ghi nhận kết quả ✅</h2>
-              <p className="text-sm text-muted-foreground">Cảm ơn bạn đã hoàn thành phiên đánh giá.</p>
+              <h2 className="text-lg font-semibold">Results saved ✅</h2>
+              <p className="text-sm text-muted-foreground">Thank you for completing the evaluation session.</p>
               <PrimaryButton type="button" size="md" onClick={() => setPhase("notice")}>
-                Bắt đầu phiên mới
+                Start a new session
               </PrimaryButton>
             </div>
           ) : null}
@@ -193,7 +193,7 @@ export function EvaluationPage() {
             <>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-muted-foreground">
-                  Câu {cursor + 1} / {session.size}
+                  Item {cursor + 1} / {session.size}
                 </span>
                 <div className="h-1 w-40 overflow-hidden rounded-full bg-muted">
                   <div
@@ -204,7 +204,7 @@ export function EvaluationPage() {
               </div>
 
               <div className="rounded-2xl border border-border bg-background/40 p-3">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Văn bản</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Text</p>
                 <p className="mt-1 text-sm leading-6 text-foreground">{item.text}</p>
               </div>
 
@@ -238,7 +238,7 @@ export function EvaluationPage() {
                   disabled={!canSubmitItem || phase === "submitting"}
                   onClick={() => void handleItemSubmit()}
                 >
-                  {cursor + 1 >= session.size ? "Hoàn thành" : "Câu tiếp theo"}
+                  {cursor + 1 >= session.size ? "Finish" : "Next"}
                 </PrimaryButton>
               </div>
             </>

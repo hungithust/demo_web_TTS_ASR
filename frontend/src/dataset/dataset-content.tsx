@@ -55,7 +55,7 @@ export function DatasetContent() {
     } catch (e) {
       // revert on failure
       setSamples((prev) => prev.map((s) => (s.id === sample.id ? { ...s, is_fixed: !next } : s)));
-      setError(getApiMessage(e, "Không thể cập nhật câu cố định"));
+      setError(getApiMessage(e, "Could not update fixed status"));
     }
   }
 
@@ -114,7 +114,7 @@ export function DatasetContent() {
             fixedOnly ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:text-foreground",
           ].join(" ")}
         >
-          ★ Chỉ câu cố định
+          ★ Fixed only
         </button>
       </div>
 
@@ -170,7 +170,7 @@ export function DatasetContent() {
                     <button
                       type="button"
                       onClick={() => void toggleFixed(s)}
-                      title={s.is_fixed ? "Bỏ cố định" : "Đánh dấu cố định"}
+                      title={s.is_fixed ? "Unmark fixed" : "Mark as fixed"}
                       className={cn(
                         "mt-0.5 shrink-0 rounded-full p-1 transition",
                         s.is_fixed ? "text-amber-500" : "text-muted-foreground hover:text-foreground",

@@ -25,7 +25,7 @@ function buildMockSession(kind: EvaluationMode): EvalSession {
   const items: SessionItem[] = Array.from({ length: MOCK_SIZE }).map((_, i) => ({
     trial_id: `t_mock_${kind}_${i}_${Date.now()}`,
     sample_id: `s_mock_${i}`,
-    text: `Câu mẫu số ${i + 1} để đối chiếu giọng đọc.`,
+    text: `Sample sentence ${i + 1} for voice comparison.`,
     ...(kind === "mos"
       ? { audio_url: "/static/audio/mock_a.wav" }
       : { slot1_url: "/static/audio/mock_a.wav", slot2_url: "/static/audio/mock_b.wav" }),

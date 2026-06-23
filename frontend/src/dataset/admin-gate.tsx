@@ -36,9 +36,9 @@ export function AdminGate({ children }: { children: ReactNode }) {
       <div className="pointer-events-none fixed inset-0 z-20 flex items-center justify-center p-4">
         <div className="pointer-events-auto w-full max-w-sm space-y-4 rounded-3xl border border-border bg-card p-6 shadow-lg">
           <div>
-            <h2 className="text-lg font-semibold">Khu vực quản trị</h2>
+            <h2 className="text-lg font-semibold">Admin area</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Nhập mật khẩu để truy cập tab Dataset.
+              Enter the password to access the Dataset tab.
             </p>
           </div>
           <input
@@ -52,12 +52,12 @@ export function AdminGate({ children }: { children: ReactNode }) {
             onKeyDown={(e) => {
               if (e.key === "Enter") submit();
             }}
-            placeholder="Mật khẩu"
+            placeholder="Password"
             className="w-full rounded-2xl border border-border bg-background p-3 text-sm"
           />
-          {error ? <p className="text-sm text-destructive">Mật khẩu không đúng.</p> : null}
+          {error ? <p className="text-sm text-destructive">Incorrect password.</p> : null}
           <PrimaryButton type="button" size="md" className="w-full" onClick={submit}>
-            Mở khoá
+            Unlock
           </PrimaryButton>
         </div>
       </div>
