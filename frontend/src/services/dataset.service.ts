@@ -13,6 +13,7 @@ const mockSamples: DatasetSample[] = [
     id: "ds_mock_1",
     text: "Xin chào, hôm nay bạn khỏe không?",
     category: "Câu hội thoại cơ bản",
+    is_fixed: false,
     audios: [
       { model_id: "omnivoice", audio_url: "/static/audio/mock_a.wav" },
       { model_id: "voxcpm2", audio_url: "/static/audio/mock_b.wav" },
@@ -22,6 +23,7 @@ const mockSamples: DatasetSample[] = [
     id: "ds_mock_2",
     text: "Một trăm hai mươi ba.",
     category: "Số nguyên",
+    is_fixed: false,
     audios: [
       { model_id: "omnivoice", audio_url: "/static/audio/mock_a.wav" },
       { model_id: "voxcpm2", audio_url: "/static/audio/mock_b.wav" },
@@ -48,13 +50,17 @@ async function getCategories(): Promise<CategoryCount[]> {
   return fetchJson<CategoryCount[]>("/api/dataset/categories");
 }
 
-async function getSamples(category?: string): Promise<DatasetSample[]> {
+async function getSamples(category?: string, fixedOnly = false): Promise<DatasetSample[]> {
   if (useMock) {
     await simulateLatency();
-    const rows = category ? mockSamples.filter((s) => s.category === category) : mockSamples;
+    let rows = category ? mockSamples.filter((s) => s.category === category) : mockSamples;
+    if (fixedOnly) rows = rows.filter((s) => s.is_fixed);
     return rows.map(resolveAudios);
   }
-  const query = category ? `?category=${encodeURIComponent(category)}` : "";
+  const params = new URLSearchParams();
+  if (category) params.set("category", category);
+  if (fixedOnly) params.set("fixed_only", "true");
+  const query = params.toString() ? `?${params.toString()}` : "";
   const rows = await fetchJson<DatasetSample[]>(`/api/dataset/samples${query}`);
   return rows.map(resolveAudios);
 }
@@ -66,6 +72,7 @@ async function addSample(payload: AddSampleRequest): Promise<DatasetSample> {
       id: `ds_mock_${Date.now()}`,
       text: payload.text,
       category: payload.category,
+      is_fixed: false,
       audios: [
         { model_id: "omnivoice", audio_url: "/static/audio/mock_a.wav" },
         { model_id: "voxcpm2", audio_url: "/static/audio/mock_b.wav" },
@@ -81,5 +88,19 @@ async function addSample(payload: AddSampleRequest): Promise<DatasetSample> {
   return resolveAudios(created);
 }
 
-export const datasetService = { getCategories, getSamples, addSample };
-export { getCategories, getSamples, addSample };
+async function setFixed(id: string, is_fixed: boolean): Promise<DatasetSample> {
+  if (useMock) {
+    await simulateLatency();
+    const row = mockSamples.find((s) => s.id === id);
+    if (row) row.is_fixed = is_fixed;
+    return resolveAudios(row ?? { id, text: "", category: null, is_fixed, audios: [] });
+  }
+  const updated = await fetchJson<DatasetSample>(`/api/dataset/samples/${id}/fixed`, {
+    method: "PATCH",
+    body: JSON.stringify({ is_fixed }),
+  });
+  return resolveAudios(updated);
+}
+
+export const datasetService = { getCategories, getSamples, addSample, setFixed };
+export { getCategories, getSamples, addSample, setFixed };

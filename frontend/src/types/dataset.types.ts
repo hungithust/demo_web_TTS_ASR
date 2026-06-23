@@ -7,6 +7,7 @@ export type DatasetSample = {
   id: string;
   text: string;
   category: string | null;
+  is_fixed: boolean;
   audios: DatasetAudio[];
 };
 
