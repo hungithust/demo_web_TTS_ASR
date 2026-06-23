@@ -13,6 +13,7 @@ class Sample(SQLModel, table=True):
     id: str = Field(primary_key=True)
     text: str
     category: str | None = Field(default=None, index=True)
+    is_fixed: bool = Field(default=False, index=True)
 
 
 class Model(SQLModel, table=True):
@@ -32,6 +33,17 @@ class Audio(SQLModel, table=True):
     audio_url: str
 
 
+class EvalSession(SQLModel, table=True):
+    __tablename__ = "eval_sessions"
+
+    id: str = Field(primary_key=True)            # opaque token, e.g. "es_..."
+    client_session_id: str = Field(index=True)   # localStorage session id
+    kind: str = Field(index=True)                # 'mos' | 'cmos'
+    size: int
+    completed: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=_now)
+
+
 class Trial(SQLModel, table=True):
     """Opaque-token mapping: trial_id -> real content. Core of blind/anti-tamper."""
 
@@ -46,6 +58,7 @@ class Trial(SQLModel, table=True):
     model_slot2: str | None = None  # CMOS
     created_at: datetime = Field(default_factory=_now)
     consumed: bool = Field(default=False)
+    eval_session_id: str | None = Field(default=None, index=True)
 
 
 class MosScore(SQLModel, table=True):
