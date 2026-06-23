@@ -5,11 +5,15 @@ from collections import defaultdict
 from sqlmodel import select
 
 from app.errors import InvalidTrialError, NoTrialAvailableError
-from app.models_eval import Audio, Model, Sample, Trial, MosScore, CmosScore
+from app.models_eval import Audio, Model, Sample, Trial, MosScore, CmosScore, EvalSession
 
 
 def _new_trial_id() -> str:
     return "t_" + secrets.token_urlsafe(16)
+
+
+def _new_session_id() -> str:
+    return "es_" + secrets.token_urlsafe(16)
 
 
 class EvalService:
@@ -17,115 +21,148 @@ class EvalService:
         self._session_factory = session_factory
         self._registry = registry
 
-    # ---------- MOS ----------
+    _VALID_SCORES = {i * 0.5 for i in range(0, 11)}
+    _VALID_CHOICES = {"slot1", "slot2", "same"}
 
-    def next_mos(self, session_id: str) -> Trial:
+    # ---------- session start ----------
+
+    def start_session(self, kind: str, client_session_id: str, size: int) -> dict:
+        if kind not in ("mos", "cmos"):
+            raise InvalidTrialError(f"Unknown kind: {kind}")
         with self._session_factory() as s:
             audios = s.exec(select(Audio)).all()
-            if not audios:
-                raise NoTrialAvailableError("No pre-generated audio available")
+            samples = {row.id: row for row in s.exec(select(Sample)).all()}
 
-            # exposure balancing: count existing MOS votes per (sample, model)
-            counts = defaultdict(int)
-            for sc in s.exec(select(MosScore)).all():
-                counts[(sc.sample_id, sc.model_id)] += 1
-
-            recent = self._recent_samples(s, session_id, kind="mos")
-            chosen = self._pick_least_voted(
-                [(a.sample_id, a.model_id) for a in audios], counts, recent
-            )
-            sample_id, model_id = chosen
-
-            trial = Trial(
-                id=_new_trial_id(),
-                kind="mos",
-                session_id=session_id,
-                sample_id=sample_id,
-                model_id=model_id,
-            )
-            s.add(trial)
-            s.commit()
-            s.refresh(trial)
-            return trial
-
-    def mos_audio_url(self, sample_id: str, model_id: str) -> str:
-        with self._session_factory() as s:
-            audio = s.exec(
-                select(Audio).where(Audio.sample_id == sample_id, Audio.model_id == model_id)
-            ).first()
-            if audio is None:
-                raise NoTrialAvailableError("Audio missing for trial")
-            return audio.audio_url
-
-    def submit_mos(self, trial_id: str, score: float, session_id: str) -> None:
-        with self._session_factory() as s:
-            trial = self._consume_trial(s, trial_id, session_id, kind="mos")
-            s.add(
-                MosScore(
-                    trial_id=trial.id,
-                    session_id=session_id,
-                    sample_id=trial.sample_id,
-                    model_id=trial.model_id,
-                    score=score,
-                )
-            )
-            s.commit()
-
-    # ---------- CMOS ----------
-
-    def next_cmos(self, session_id: str) -> tuple[Trial, str, str]:
-        with self._session_factory() as s:
-            audios = s.exec(select(Audio)).all()
-            by_sample = defaultdict(list)
+            by_sample: dict[str, list[str]] = defaultdict(list)
             for a in audios:
                 by_sample[a.sample_id].append(a.model_id)
 
-            # candidate fixed-order pairs per sample (slot1 < slot2)
-            pairs = []
-            for sample_id, models in by_sample.items():
-                models = sorted(set(models))
-                for i in range(len(models)):
-                    for j in range(i + 1, len(models)):
-                        pairs.append((sample_id, models[i], models[j]))
-            if not pairs:
-                raise NoTrialAvailableError("No model pair available for CMOS")
+            # pool: samples that have the required audio
+            if kind == "mos":
+                pool = [sid for sid, ms in by_sample.items() if len(ms) >= 1]
+            else:
+                pool = [sid for sid, ms in by_sample.items() if len(set(ms)) >= 2]
+            if not pool:
+                raise NoTrialAvailableError("No samples with audio available")
 
-            counts = defaultdict(int)
-            for sc in s.exec(select(CmosScore)).all():
-                counts[(sc.sample_id, sc.model_slot1, sc.model_slot2)] += 1
+            chosen_samples = self._choose_session_samples(pool, samples, size)
 
-            recent = self._recent_samples(s, session_id, kind="cmos")
-            sample_id, m1, m2 = self._pick_least_voted(pairs, counts, recent)
+            # build per-sample model / pair using exposure balancing
+            if kind == "mos":
+                counts = defaultdict(int)
+                for sc in s.exec(select(MosScore)).all():
+                    counts[(sc.sample_id, sc.model_id)] += 1
+            else:
+                counts = defaultdict(int)
+                for sc in s.exec(select(CmosScore)).all():
+                    counts[(sc.sample_id, sc.model_slot1, sc.model_slot2)] += 1
 
-            trial = Trial(
-                id=_new_trial_id(),
-                kind="cmos",
-                session_id=session_id,
-                sample_id=sample_id,
-                model_slot1=m1,
-                model_slot2=m2,
+            es = EvalSession(
+                id=_new_session_id(),
+                client_session_id=client_session_id,
+                kind=kind,
+                size=len(chosen_samples),
             )
-            s.add(trial)
+            s.add(es)
+
+            items = []
+            for sid in chosen_samples:
+                models = sorted(set(by_sample[sid]))
+                if kind == "mos":
+                    candidates = [(sid, m) for m in models]
+                    _, model_id = self._pick_least_voted(candidates, counts, set())
+                    trial = Trial(id=_new_trial_id(), kind="mos", session_id=client_session_id,
+                                  sample_id=sid, model_id=model_id, eval_session_id=es.id)
+                    s.add(trial)
+                    url = next(a.audio_url for a in audios
+                               if a.sample_id == sid and a.model_id == model_id)
+                    items.append({"trial_id": trial.id, "sample_id": sid,
+                                  "text": samples[sid].text, "audio_url": url})
+                else:
+                    pairs = [(sid, models[i], models[j])
+                             for i in range(len(models)) for j in range(i + 1, len(models))]
+                    _, m1, m2 = self._pick_least_voted(pairs, counts, set())
+                    trial = Trial(id=_new_trial_id(), kind="cmos", session_id=client_session_id,
+                                  sample_id=sid, model_slot1=m1, model_slot2=m2,
+                                  eval_session_id=es.id)
+                    s.add(trial)
+                    url1 = next(a.audio_url for a in audios
+                                if a.sample_id == sid and a.model_id == m1)
+                    url2 = next(a.audio_url for a in audios
+                                if a.sample_id == sid and a.model_id == m2)
+                    items.append({"trial_id": trial.id, "sample_id": sid,
+                                  "text": samples[sid].text,
+                                  "slot1_url": url1, "slot2_url": url2})
+
             s.commit()
-            s.refresh(trial)
+            return {"eval_session_id": es.id, "kind": kind,
+                    "size": len(items), "items": items}
 
-            url1 = self._audio_url(s, sample_id, m1)
-            url2 = self._audio_url(s, sample_id, m2)
-            return trial, url1, url2
+    def _choose_session_samples(self, pool, samples, size) -> list[str]:
+        fixed = [sid for sid in pool if samples[sid].is_fixed]
+        rest = [sid for sid in pool if not samples[sid].is_fixed]
+        if size >= len(pool):
+            chosen = list(pool)
+        elif len(fixed) >= size:
+            chosen = list(_sample_without_replacement(fixed, size))
+        else:
+            chosen = list(fixed) + list(
+                _sample_without_replacement(rest, size - len(fixed)))
+        secrets.SystemRandom().shuffle(chosen)
+        return chosen
 
-    def submit_cmos(self, trial_id: str, choice: str, session_id: str) -> None:
+    # ---------- session complete (atomic) ----------
+
+    def complete_session(self, eval_session_id: str, client_session_id: str,
+                         answers: list[dict]) -> None:
         with self._session_factory() as s:
-            trial = self._consume_trial(s, trial_id, session_id, kind="cmos")
-            s.add(
-                CmosScore(
-                    trial_id=trial.id,
-                    session_id=session_id,
-                    sample_id=trial.sample_id,
-                    model_slot1=trial.model_slot1,
-                    model_slot2=trial.model_slot2,
-                    choice=choice,
-                )
-            )
+            es = s.get(EvalSession, eval_session_id)
+            if es is None:
+                raise InvalidTrialError("Unknown session")
+            if es.client_session_id != client_session_id:
+                raise InvalidTrialError("Session does not belong to this client")
+            if es.completed:
+                raise InvalidTrialError("Session already completed")
+
+            trials = {t.id: t for t in s.exec(
+                select(Trial).where(Trial.eval_session_id == es.id)).all()}
+
+            if len(answers) != es.size:
+                raise InvalidTrialError("Session not fully answered")
+            seen = set()
+            for ans in answers:
+                tid = ans.get("trial_id")
+                if tid not in trials or tid in seen:
+                    raise InvalidTrialError("Invalid or duplicate trial in answers")
+                seen.add(tid)
+            if len(seen) != es.size:
+                raise InvalidTrialError("Answers do not cover all trials")
+
+            # validate values before writing anything
+            for ans in answers:
+                t = trials[ans["trial_id"]]
+                if t.kind == "mos":
+                    if ans.get("score") not in self._VALID_SCORES:
+                        raise InvalidTrialError("Invalid score")
+                else:
+                    if ans.get("choice") not in self._VALID_CHOICES:
+                        raise InvalidTrialError("Invalid choice")
+
+            # all valid -> write atomically
+            for ans in answers:
+                t = trials[ans["trial_id"]]
+                t.consumed = True
+                s.add(t)
+                if t.kind == "mos":
+                    s.add(MosScore(trial_id=t.id, session_id=client_session_id,
+                                   sample_id=t.sample_id, model_id=t.model_id,
+                                   score=ans["score"]))
+                else:
+                    s.add(CmosScore(trial_id=t.id, session_id=client_session_id,
+                                    sample_id=t.sample_id, model_slot1=t.model_slot1,
+                                    model_slot2=t.model_slot2, choice=ans["choice"]))
+            es.completed = True
+            s.add(es)
             s.commit()
 
     # ---------- Results ----------
@@ -232,6 +269,13 @@ class EvalService:
         if audio is None:
             raise NoTrialAvailableError("Audio missing for trial")
         return audio.audio_url
+
+
+def _sample_without_replacement(items, k):
+    rng = secrets.SystemRandom()
+    pool = list(items)
+    rng.shuffle(pool)
+    return pool[:k]
 
 
 def _stdev(vals: list[float]) -> float:
