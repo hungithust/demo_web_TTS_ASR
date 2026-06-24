@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     static_dir: str = "static"
     audio_dir: str = "static/audio"
     min_votes: int = 20
-    eval_session_size: int = 20
+    eval_session_size: int = 15
 
     @classmethod
     def settings_customise_sources(cls, settings_cls, env_settings, dotenv_settings, **kwargs):

@@ -21,4 +21,4 @@ def test_cors_origins_csv(monkeypatch):
 def test_eval_session_size_default(monkeypatch):
     monkeypatch.delenv("EVAL_SESSION_SIZE", raising=False)
     from app.config import Settings
-    assert Settings().eval_session_size == 20
+    assert Settings().eval_session_size == 15
