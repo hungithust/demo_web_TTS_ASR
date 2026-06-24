@@ -4,3 +4,9 @@ __pycache__
 .pytest_cache
 tests
 .env
+*.log
+.git
+Dockerfile
+.dockerignore
+HANDOVER.md
+TTS_model_Dataset.xlsx
