@@ -18,6 +18,12 @@ export type EvalSession = {
   items: SessionItem[];
 };
 
+export type CriteriaScores = {
+  naturalness: number | null;
+  audio_quality: number | null;
+  intelligibility: number | null;
+};
+
 export type SessionAnswer = {
   trial_id: string;
   score?: number;     // MOS

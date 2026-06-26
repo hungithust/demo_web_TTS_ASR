@@ -7,12 +7,34 @@ import { SectionContainer } from "@/components/shared/section-container";
 import { cn } from "@/lib/utils";
 import { evalService } from "@/services/eval.service";
 import { getApiMessage } from "@/services/api";
-import type { EvalSession, EvaluationMode, SessionAnswer, SessionItem } from "@/types/eval.types";
+import type { CriteriaScores, EvalSession, EvaluationMode, SessionAnswer, SessionItem } from "@/types/eval.types";
 
 type Phase = "notice" | "in_progress" | "submitting" | "done";
 
 // A/B display mapping for CMOS (remove order bias), keyed by trial_id.
 type AbMap = Record<string, { A: "slot1" | "slot2"; B: "slot1" | "slot2" }>;
+
+const EMPTY_CRITERIA_SCORES: CriteriaScores = {
+  naturalness: null,
+  audio_quality: null,
+  intelligibility: null,
+};
+
+const SCORING_CRITERIA: Array<{ key: keyof CriteriaScores; label: string }> = [
+  { key: "naturalness", label: "Naturalness & Prosody" },
+  { key: "audio_quality", label: "Audio Quality" },
+  { key: "intelligibility", label: "Intelligibility & Pronunciation" },
+];
+
+function getAverageScore(scores: CriteriaScores) {
+  const values = Object.values(scores);
+  const total = values.reduce<number>((sum, score) => sum + (score ?? 0), 0);
+  return Number((total / values.length).toFixed(2));
+}
+
+function hasAllCriteriaScores(scores: CriteriaScores) {
+  return Object.values(scores).every((score) => score !== null);
+}
 
 export function EvaluationPage() {
   const [mode, setMode] = useState<EvaluationMode>("mos");
@@ -24,7 +46,7 @@ export function EvaluationPage() {
   const [starting, setStarting] = useState(false);
 
   // current-item answer + playback gates
-  const [mosScore, setMosScore] = useState<number | null>(null);
+  const [criteriaScores, setCriteriaScores] = useState<CriteriaScores>(EMPTY_CRITERIA_SCORES);
   const [choice, setChoice] = useState<ComparisonChoice | null>(null);
   const [playedMos, setPlayedMos] = useState(false);
   const [playedA, setPlayedA] = useState(false);
@@ -46,11 +68,15 @@ export function EvaluationPage() {
   }, [inProgress]);
 
   function resetItemState() {
-    setMosScore(null);
+    setCriteriaScores(EMPTY_CRITERIA_SCORES);
     setChoice(null);
     setPlayedMos(false);
     setPlayedA(false);
     setPlayedB(false);
+  }
+
+  function updateCriteriaScore(key: keyof CriteriaScores, value: number) {
+    setCriteriaScores((current) => ({ ...current, [key]: value }));
   }
 
   async function handleStart() {
@@ -93,16 +119,16 @@ export function EvaluationPage() {
 
   const canSubmitItem = useMemo(() => {
     if (!item) return false;
-    if (mode === "mos") return playedMos && mosScore !== null;
-    return playedA && playedB && choice !== null;
-  }, [item, mode, playedMos, mosScore, playedA, playedB, choice]);
+    if (mode === "mos") return playedMos && hasAllCriteriaScores(criteriaScores);
+    return playedA && playedB && choice !== null && hasAllCriteriaScores(criteriaScores);
+  }, [item, mode, playedMos, criteriaScores, playedA, playedB, choice]);
 
   async function handleItemSubmit() {
     if (!item || !session || !canSubmitItem) return;
 
     const answer: SessionAnswer =
       mode === "mos"
-        ? { trial_id: item.trial_id, score: mosScore as number }
+        ? { trial_id: item.trial_id, score: getAverageScore(criteriaScores) }
         : {
             trial_id: item.trial_id,
             choice:
@@ -169,7 +195,7 @@ export function EvaluationPage() {
             <div className="space-y-4 text-center">
               <h2 className="text-lg font-semibold">{mode.toUpperCase()} evaluation session</h2>
               <p className="mx-auto max-w-md text-sm text-muted-foreground">
-                A session includes a set of fixed anchor items. You must complete
+                A session includes a set of <strong> 15 samples </strong>. You must complete
                 <strong> all </strong> items for your results to be recorded. If you leave
                 midway, nothing will be saved.
               </p>
@@ -216,7 +242,17 @@ export function EvaluationPage() {
                     hasPlayed={playedMos}
                     onEnded={() => setPlayedMos(true)}
                   />
-                  <ScoreSelector value={mosScore} onChange={setMosScore} />
+                  <div className="space-y-4">
+                    {SCORING_CRITERIA.map((criterion) => (
+                      <ScoreSelector
+                        key={criterion.key}
+                        value={criteriaScores[criterion.key]}
+                        onChange={(value) => updateCriteriaScore(criterion.key, value)}
+                        label={criterion.label}
+                        ariaLabel={criterion.label}
+                      />
+                    ))}
+                  </div>
                 </>
               ) : (
                 <>
@@ -227,6 +263,17 @@ export function EvaluationPage() {
                       hasPlayed={playedB} onEnded={() => setPlayedB(true)} />
                   </div>
                   <ComparisonSelector value={choice} onChange={setChoice} />
+                  <div className="space-y-4">
+                    {SCORING_CRITERIA.map((criterion) => (
+                      <ScoreSelector
+                        key={criterion.key}
+                        value={criteriaScores[criterion.key]}
+                        onChange={(value) => updateCriteriaScore(criterion.key, value)}
+                        label={criterion.label}
+                        ariaLabel={`${criterion.label} score selection`}
+                      />
+                    ))}
+                  </div>
                 </>
               )}
 
