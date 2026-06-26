@@ -69,7 +69,10 @@ class MosScore(SQLModel, table=True):
     session_id: str = Field(index=True)
     sample_id: str
     model_id: str = Field(index=True)
-    score: float
+    # Per-criterion MOS scores (0..5, step 0.5). No aggregate/overall score.
+    naturalness: float        # Naturalness & Prosody
+    audio_quality: float      # Audio Quality
+    intelligibility: float    # Intelligibility & Pronunciation
     created_at: datetime = Field(default_factory=_now)
 
 
@@ -82,5 +85,8 @@ class CmosScore(SQLModel, table=True):
     sample_id: str
     model_slot1: str = Field(index=True)
     model_slot2: str = Field(index=True)
-    choice: str  # 'slot1' | 'slot2' | 'same'
+    # Per-criterion preference: each 'slot1' | 'slot2' | 'same'.
+    naturalness: str          # Naturalness & Prosody
+    audio_quality: str        # Audio Quality
+    intelligibility: str      # Intelligibility & Pronunciation
     created_at: datetime = Field(default_factory=_now)

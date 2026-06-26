@@ -29,16 +29,18 @@ def test_session_start_and_complete_mos(monkeypatch):
         assert it["text"]
         assert it["audio_url"].startswith("/static/audio/")
 
-    answers = [{"trial_id": it["trial_id"], "score": 4.0} for it in body["items"]]
+    scores = {"naturalness": 4.0, "audio_quality": 3.5, "intelligibility": 4.5}
+    answers = [{"trial_id": it["trial_id"], "scores": scores} for it in body["items"]]
     done = client.post("/api/eval/session/complete",
                        json={"eval_session_id": body["eval_session_id"],
                              "client_session_id": "c1", "answers": answers})
     assert done.status_code == 200
     assert done.json()["ok"] is True
 
-    # results now reflect the committed scores
+    # results now reflect the committed scores (per-criterion)
     results = client.get("/api/eval/mos/results").json()
     assert any(r["n"] >= 1 for r in results)
+    assert all("naturalness" in r and "mos" in r["naturalness"] for r in results)
 
 
 def test_session_complete_incomplete_rejected(monkeypatch):
@@ -46,7 +48,8 @@ def test_session_complete_incomplete_rejected(monkeypatch):
     _seed_via_dataset(client)
     body = client.post("/api/eval/session/start",
                        json={"kind": "mos", "client_session_id": "c1"}).json()
-    answers = [{"trial_id": body["items"][0]["trial_id"], "score": 4.0}]
+    scores = {"naturalness": 4.0, "audio_quality": 3.5, "intelligibility": 4.5}
+    answers = [{"trial_id": body["items"][0]["trial_id"], "scores": scores}]
     resp = client.post("/api/eval/session/complete",
                        json={"eval_session_id": body["eval_session_id"],
                              "client_session_id": "c1", "answers": answers})

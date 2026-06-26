@@ -6,6 +6,7 @@ from sqlmodel import select
 
 from app.errors import InvalidTrialError, NoTrialAvailableError
 from app.models_eval import Audio, Model, Sample, Trial, MosScore, CmosScore, EvalSession
+from app.schemas_eval import CRITERIA
 
 
 def _new_trial_id() -> str:
@@ -138,15 +139,17 @@ class EvalService:
             if len(seen) != es.size:
                 raise InvalidTrialError("Answers do not cover all trials")
 
-            # validate values before writing anything
+            # validate values before writing anything (all 3 criteria required)
             for ans in answers:
                 t = trials[ans["trial_id"]]
                 if t.kind == "mos":
-                    if ans.get("score") not in self._VALID_SCORES:
-                        raise InvalidTrialError("Invalid score")
+                    scores = ans.get("scores") or {}
+                    if any(scores.get(c) not in self._VALID_SCORES for c in CRITERIA):
+                        raise InvalidTrialError("Invalid or missing criterion score")
                 else:
-                    if ans.get("choice") not in self._VALID_CHOICES:
-                        raise InvalidTrialError("Invalid choice")
+                    choices = ans.get("choices") or {}
+                    if any(choices.get(c) not in self._VALID_CHOICES for c in CRITERIA):
+                        raise InvalidTrialError("Invalid or missing criterion choice")
 
             # all valid -> write atomically
             for ans in answers:
@@ -154,13 +157,20 @@ class EvalService:
                 t.consumed = True
                 s.add(t)
                 if t.kind == "mos":
+                    scores = ans["scores"]
                     s.add(MosScore(trial_id=t.id, session_id=client_session_id,
                                    sample_id=t.sample_id, model_id=t.model_id,
-                                   score=ans["score"]))
+                                   naturalness=scores["naturalness"],
+                                   audio_quality=scores["audio_quality"],
+                                   intelligibility=scores["intelligibility"]))
                 else:
+                    choices = ans["choices"]
                     s.add(CmosScore(trial_id=t.id, session_id=client_session_id,
                                     sample_id=t.sample_id, model_slot1=t.model_slot1,
-                                    model_slot2=t.model_slot2, choice=ans["choice"]))
+                                    model_slot2=t.model_slot2,
+                                    naturalness=choices["naturalness"],
+                                    audio_quality=choices["audio_quality"],
+                                    intelligibility=choices["intelligibility"]))
             es.completed = True
             s.add(es)
             s.commit()
@@ -168,68 +178,83 @@ class EvalService:
     # ---------- Results ----------
 
     def mos_results(self, min_votes: int) -> list[dict]:
+        """Per-model MOS, computed independently for each of the 3 criteria."""
         with self._session_factory() as s:
-            scores = defaultdict(list)
+            # per_model[model_id][criterion] -> list of scores
+            per_model: dict[str, dict[str, list[float]]] = defaultdict(
+                lambda: {c: [] for c in CRITERIA})
             for sc in s.exec(select(MosScore)).all():
-                scores[sc.model_id].append(sc.score)
+                for c in CRITERIA:
+                    per_model[sc.model_id][c].append(getattr(sc, c))
             names = {m.id: m.name for m in s.exec(select(Model)).all()}
 
             rows = []
-            for model_id, vals in scores.items():
-                n = len(vals)
-                mean = sum(vals) / n
-                std = _stdev(vals)
-                ci95 = 1.96 * std / math.sqrt(n) if n > 1 else None
-                rows.append(
-                    {
-                        "model_id": model_id,
-                        "name": names.get(model_id),
-                        "mos": round(mean, 4),
-                        "n": n,
-                        "std": round(std, 4),
-                        "ci95": round(ci95, 4) if ci95 is not None else None,
-                        "ranked": n >= min_votes,
-                    }
-                )
-            rows.sort(key=lambda r: (r["ranked"], r["mos"]), reverse=True)
+            for model_id, crit_vals in per_model.items():
+                n = len(crit_vals[CRITERIA[0]])  # each vote covers all criteria
+                row = {
+                    "model_id": model_id,
+                    "name": names.get(model_id),
+                    "n": n,
+                    "ranked": n >= min_votes,
+                }
+                for c in CRITERIA:
+                    row[c] = _criterion_stat(crit_vals[c])
+                rows.append(row)
+
+            # ordering only (not a reported aggregate): mean across criteria
+            def _sort_key(r):
+                means = [r[c]["mos"] for c in CRITERIA if r[c]["mos"] is not None]
+                return (r["ranked"], sum(means) / len(means) if means else 0.0)
+
+            rows.sort(key=_sort_key, reverse=True)
             return rows
 
     def cmos_results(self) -> dict:
+        """Per-pair and per-model win-rates, computed independently per criterion."""
         with self._session_factory() as s:
-            agg = defaultdict(lambda: {"slot1": 0, "slot2": 0, "same": 0})
+            # agg[(m1, m2)][criterion] -> {slot1, slot2, same}
+            agg: dict[tuple, dict[str, dict[str, int]]] = defaultdict(
+                lambda: {c: {"slot1": 0, "slot2": 0, "same": 0} for c in CRITERIA})
             for sc in s.exec(select(CmosScore)).all():
-                agg[(sc.model_slot1, sc.model_slot2)][sc.choice] += 1
+                bucket = agg[(sc.model_slot1, sc.model_slot2)]
+                for c in CRITERIA:
+                    bucket[c][getattr(sc, c)] += 1
 
             pairs = []
-            # per-model win-rate accumulation for ranking
-            wins = defaultdict(float)
-            totals = defaultdict(int)
-            for (m1, m2), c in agg.items():
-                n = c["slot1"] + c["slot2"] + c["same"]
-                wr1 = (c["slot1"] + 0.5 * c["same"]) / n if n else None
-                pairs.append(
-                    {
-                        "model_slot1": m1,
-                        "model_slot2": m2,
+            # per-model, per-criterion win-rate accumulation for ranking
+            wins: dict[str, dict[str, float]] = defaultdict(
+                lambda: {c: 0.0 for c in CRITERIA})
+            totals: dict[str, dict[str, int]] = defaultdict(
+                lambda: {c: 0 for c in CRITERIA})
+
+            for (m1, m2), crit in agg.items():
+                row = {"model_slot1": m1, "model_slot2": m2}
+                for c in CRITERIA:
+                    cc = crit[c]
+                    n = cc["slot1"] + cc["slot2"] + cc["same"]
+                    wr1 = (cc["slot1"] + 0.5 * cc["same"]) / n if n else None
+                    row[c] = {
                         "n": n,
                         "win_rate_slot1": round(wr1, 4) if wr1 is not None else None,
                     }
-                )
-                if n:
-                    wins[m1] += c["slot1"] + 0.5 * c["same"]
-                    wins[m2] += c["slot2"] + 0.5 * c["same"]
-                    totals[m1] += n
-                    totals[m2] += n
+                    if n:
+                        wins[m1][c] += cc["slot1"] + 0.5 * cc["same"]
+                        wins[m2][c] += cc["slot2"] + 0.5 * cc["same"]
+                        totals[m1][c] += n
+                        totals[m2][c] += n
+                pairs.append(row)
 
-            ranking = [
-                {
-                    "model_id": m,
-                    "avg_win_rate": round(wins[m] / totals[m], 4),
-                    "n": totals[m],
-                }
-                for m in totals
-            ]
-            ranking.sort(key=lambda r: r["avg_win_rate"], reverse=True)
+            ranking = {c: [] for c in CRITERIA}
+            for m in totals:
+                for c in CRITERIA:
+                    if totals[m][c]:
+                        ranking[c].append({
+                            "model_id": m,
+                            "avg_win_rate": round(wins[m][c] / totals[m][c], 4),
+                            "n": totals[m][c],
+                        })
+            for c in CRITERIA:
+                ranking[c].sort(key=lambda r: r["avg_win_rate"], reverse=True)
             return {"pairs": pairs, "ranking": ranking}
 
     # ---------- helpers ----------
@@ -276,6 +301,21 @@ def _sample_without_replacement(items, k):
     pool = list(items)
     rng.shuffle(pool)
     return pool[:k]
+
+
+def _criterion_stat(vals: list[float]) -> dict:
+    """MOS mean / std / 95% CI for one criterion's scores."""
+    n = len(vals)
+    if n == 0:
+        return {"mos": None, "std": None, "ci95": None}
+    mean = sum(vals) / n
+    std = _stdev(vals)
+    ci95 = 1.96 * std / math.sqrt(n) if n > 1 else None
+    return {
+        "mos": round(mean, 4),
+        "std": round(std, 4),
+        "ci95": round(ci95, 4) if ci95 is not None else None,
+    }
 
 
 def _stdev(vals: list[float]) -> float:

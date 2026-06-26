@@ -42,6 +42,27 @@ def _migrate_trials_eval_session(engine) -> None:
             conn.execute(text("ALTER TABLE trials ADD COLUMN eval_session_id VARCHAR"))
 
 
+def _migrate_drop_legacy_score_tables(engine) -> None:
+    """Drop pre-per-criterion score tables so create_all rebuilds the new schema.
+
+    Old schema stored a single `score` (mos_scores) / `choice` (cmos_scores).
+    The new schema scores 3 criteria independently, so legacy vote rows are
+    incompatible and intentionally discarded. Samples/audios/models are kept.
+    Runs BEFORE create_all. No-op on fresh DBs or already-migrated ones.
+    """
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+    with engine.begin() as conn:
+        if "mos_scores" in tables:
+            cols = {c["name"] for c in inspector.get_columns("mos_scores")}
+            if "score" in cols:
+                conn.execute(text("DROP TABLE mos_scores"))
+        if "cmos_scores" in tables:
+            cols = {c["name"] for c in inspector.get_columns("cmos_scores")}
+            if "choice" in cols:
+                conn.execute(text("DROP TABLE cmos_scores"))
+
+
 def _ensure_sqlite_dir(database_url: str) -> None:
     """Create the parent directory for a sqlite file DB if needed."""
     if not database_url.startswith("sqlite"):
@@ -59,6 +80,7 @@ def init_db(settings) -> None:
     _ensure_sqlite_dir(settings.database_url)
     connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
     _engine = create_engine(settings.database_url, connect_args=connect_args)
+    _migrate_drop_legacy_score_tables(_engine)  # must run before create_all
     SQLModel.metadata.create_all(_engine)
     _migrate_samples_category(_engine)
     _migrate_samples_is_fixed(_engine)

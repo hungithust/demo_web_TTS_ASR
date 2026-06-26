@@ -7,7 +7,7 @@ import { SectionContainer } from "@/components/shared/section-container";
 import { cn } from "@/lib/utils";
 import { evalService } from "@/services/eval.service";
 import { getApiMessage } from "@/services/api";
-import type { CriteriaScores, EvalSession, EvaluationMode, SessionAnswer, SessionItem } from "@/types/eval.types";
+import type { CriteriaChoices, CriteriaScores, EvalSession, EvaluationMode, SessionAnswer, SessionItem, SlotChoice } from "@/types/eval.types";
 
 type Phase = "notice" | "in_progress" | "submitting" | "done";
 
@@ -20,20 +20,24 @@ const EMPTY_CRITERIA_SCORES: CriteriaScores = {
   intelligibility: null,
 };
 
+const EMPTY_CRITERIA_CHOICES: CriteriaChoices = {
+  naturalness: null,
+  audio_quality: null,
+  intelligibility: null,
+};
+
 const SCORING_CRITERIA: Array<{ key: keyof CriteriaScores; label: string }> = [
   { key: "naturalness", label: "Naturalness & Prosody" },
   { key: "audio_quality", label: "Audio Quality" },
   { key: "intelligibility", label: "Intelligibility & Pronunciation" },
 ];
 
-function getAverageScore(scores: CriteriaScores) {
-  const values = Object.values(scores);
-  const total = values.reduce<number>((sum, score) => sum + (score ?? 0), 0);
-  return Number((total / values.length).toFixed(2));
-}
-
 function hasAllCriteriaScores(scores: CriteriaScores) {
   return Object.values(scores).every((score) => score !== null);
+}
+
+function hasAllCriteriaChoices(choices: CriteriaChoices) {
+  return Object.values(choices).every((choice) => choice !== null);
 }
 
 export function EvaluationPage() {
@@ -47,7 +51,7 @@ export function EvaluationPage() {
 
   // current-item answer + playback gates
   const [criteriaScores, setCriteriaScores] = useState<CriteriaScores>(EMPTY_CRITERIA_SCORES);
-  const [choice, setChoice] = useState<ComparisonChoice | null>(null);
+  const [criteriaChoices, setCriteriaChoices] = useState<CriteriaChoices>(EMPTY_CRITERIA_CHOICES);
   const [playedMos, setPlayedMos] = useState(false);
   const [playedA, setPlayedA] = useState(false);
   const [playedB, setPlayedB] = useState(false);
@@ -69,7 +73,7 @@ export function EvaluationPage() {
 
   function resetItemState() {
     setCriteriaScores(EMPTY_CRITERIA_SCORES);
-    setChoice(null);
+    setCriteriaChoices(EMPTY_CRITERIA_CHOICES);
     setPlayedMos(false);
     setPlayedA(false);
     setPlayedB(false);
@@ -77,6 +81,10 @@ export function EvaluationPage() {
 
   function updateCriteriaScore(key: keyof CriteriaScores, value: number) {
     setCriteriaScores((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateCriteriaChoice(key: keyof CriteriaChoices, value: ComparisonChoice) {
+    setCriteriaChoices((current) => ({ ...current, [key]: value }));
   }
 
   async function handleStart() {
@@ -120,22 +128,35 @@ export function EvaluationPage() {
   const canSubmitItem = useMemo(() => {
     if (!item) return false;
     if (mode === "mos") return playedMos && hasAllCriteriaScores(criteriaScores);
-    return playedA && playedB && choice !== null && hasAllCriteriaScores(criteriaScores);
-  }, [item, mode, playedMos, criteriaScores, playedA, playedB, choice]);
+    return playedA && playedB && hasAllCriteriaChoices(criteriaChoices);
+  }, [item, mode, playedMos, criteriaScores, playedA, playedB, criteriaChoices]);
 
   async function handleItemSubmit() {
     if (!item || !session || !canSubmitItem) return;
 
-    const answer: SessionAnswer =
-      mode === "mos"
-        ? { trial_id: item.trial_id, score: getAverageScore(criteriaScores) }
-        : {
-            trial_id: item.trial_id,
-            choice:
-              choice === "same"
-                ? "same"
-                : abMap.current[item.trial_id][choice as "A" | "B"],
-          };
+    let answer: SessionAnswer;
+    if (mode === "mos") {
+      answer = {
+        trial_id: item.trial_id,
+        scores: {
+          naturalness: criteriaScores.naturalness as number,
+          audio_quality: criteriaScores.audio_quality as number,
+          intelligibility: criteriaScores.intelligibility as number,
+        },
+      };
+    } else {
+      const map = abMap.current[item.trial_id];
+      const toSlot = (c: ComparisonChoice): SlotChoice =>
+        c === "same" ? "same" : map[c as "A" | "B"];
+      answer = {
+        trial_id: item.trial_id,
+        choices: {
+          naturalness: toSlot(criteriaChoices.naturalness as ComparisonChoice),
+          audio_quality: toSlot(criteriaChoices.audio_quality as ComparisonChoice),
+          intelligibility: toSlot(criteriaChoices.intelligibility as ComparisonChoice),
+        },
+      };
+    }
 
     const nextAnswers = [...answers, answer];
     setAnswers(nextAnswers);
@@ -262,16 +283,15 @@ export function EvaluationPage() {
                     <AudioPlayer label="B" src={item.slot2_url ?? undefined}
                       hasPlayed={playedB} onEnded={() => setPlayedB(true)} />
                   </div>
-                  <ComparisonSelector value={choice} onChange={setChoice} />
                   <div className="space-y-4">
                     {SCORING_CRITERIA.map((criterion) => (
-                      <ScoreSelector
-                        key={criterion.key}
-                        value={criteriaScores[criterion.key]}
-                        onChange={(value) => updateCriteriaScore(criterion.key, value)}
-                        label={criterion.label}
-                        ariaLabel={`${criterion.label} score selection`}
-                      />
+                      <div key={criterion.key} className="space-y-2">
+                        <p className="text-sm font-medium text-foreground">{criterion.label}</p>
+                        <ComparisonSelector
+                          value={criteriaChoices[criterion.key]}
+                          onChange={(value) => updateCriteriaChoice(criterion.key, value)}
+                        />
+                      </div>
                     ))}
                   </div>
                 </>

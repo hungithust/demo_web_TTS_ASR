@@ -24,8 +24,18 @@ export type CriteriaScores = {
   intelligibility: number | null;
 };
 
+export type SlotChoice = "slot1" | "slot2" | "same";
+
+export type CriteriaChoices = {
+  naturalness: ComparisonChoice | null;
+  audio_quality: ComparisonChoice | null;
+  intelligibility: ComparisonChoice | null;
+};
+
 export type SessionAnswer = {
   trial_id: string;
-  score?: number;     // MOS
-  choice?: "slot1" | "slot2" | "same";  // CMOS
+  // MOS: one 0..5 score per criterion
+  scores?: { naturalness: number; audio_quality: number; intelligibility: number };
+  // CMOS: one preference per criterion
+  choices?: { naturalness: SlotChoice; audio_quality: SlotChoice; intelligibility: SlotChoice };
 };
